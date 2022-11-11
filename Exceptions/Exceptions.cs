@@ -4,10 +4,11 @@ namespace ExceptionsNS
 {
     public class Exceptions
     {
-        public static string CannotBeNull => "Value cannot be null";
-        public static string CannotBeNegative => "Number cannot be negative";
-        public static string DestArrNotLongEnough => "Destination array was not long enough.";
-        public static string CapacityLessThanSize => "Capacity was less than the current size.";
-        public static string ArrCapacityExceeded => $"Array legnth cannot exceed {nameof(Int32)}.{nameof(int.MaxValue)}.";
+        public const string CANNOT_BE_NULL = "Value cannot be null";
+        public const string CANNOT_BE_NEGATIVE = "Number cannot be negative";
+        public const string INDEX_OUTSIDE = "Index was outside of bounds";
+        public const string DEST_ARR_NOT_LONG_ENOUGH = "Destination array was not long enough.";
+        public const string CAPACITY_LESS_THAN_SIZE = "Capacity was less than the current size.";
+        public const string ARR_MAX_CAPACITY_EXCEEDED = "Array max length was exceeded.";
     }
 }

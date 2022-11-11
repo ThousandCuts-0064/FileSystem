@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{BF20489F-B080-4906-958F-BC8ABA4A728A}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>FileSystem</RootNamespace>
     <AssemblyName>FileSystem</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -32,6 +32,9 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -46,7 +49,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FileSystem.cs" />
+    <Compile Include="Constants.cs" />
+    <Compile Include="Directory.cs" />
     <Compile Include="FormMain.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -79,6 +83,24 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CustomCollections\CustomCollections.csproj">
+      <Project>{de331960-08e1-4d31-9660-85d4da3caaf1}</Project>
+      <Name>CustomCollections</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\CustomQuery\CustomQuery.csproj">
+      <Project>{5c9f0b95-31ca-46b6-af6f-afae3ee1a1d8}</Project>
+      <Name>CustomQuery</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Exceptions\Exceptions.csproj">
+      <Project>{30b06b97-68ef-4b65-815e-fc5713d91856}</Project>
+      <Name>Exceptions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Text\Text.csproj">
+      <Project>{cf9224a9-78be-40a7-8577-13945c4eb77d}</Project>
+      <Name>Text</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

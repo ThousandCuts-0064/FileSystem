@@ -1,60 +1,68 @@
 ﻿using System;
 using System.Collections.Generic;
 using ExceptionsNS;
-using Custom = CustomCollections;
+using CustomCollections;
+using static CustomCollections.Constants;
 
 namespace CustomQuery
 {
     public static class EnumerableExt
     {
-        public static IEnumerable<T> CopyTo<T>(this IEnumerable<T> source, T[] array, int index, Action counter)
-        {
-            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CannotBeNull);
-            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CannotBeNull);
-            if (index < 0) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.CannotBeNegative);
-
-            int offset = 0;
-            if (counter is null)
-                foreach (var item in source)
-                {
-                    int curr = index + offset;
-                    array[curr] = item;
-                    offset++;
-                    if (curr == array.Length) yield return item;
-                }
-            else
-                foreach (var item in source)
-                {
-                    int curr = index + offset;
-                    array[curr] = item;
-                    offset++;
-                    counter();
-                    if (curr == array.Length) yield return item;
-                }
-        }
-
         public static void CopyTo<T>(this IReadOnlyCollection<T> roCollection, T[] array, int index)
         {
-            if (roCollection is null) throw new ArgumentNullException(nameof(roCollection), Exceptions.CannotBeNull);
-            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CannotBeNull);
-            if (index < 0) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.CannotBeNegative);
-            if (roCollection.Count > array.Length - index) throw new ArgumentException(Exceptions.DestArrNotLongEnough);
+            if (roCollection is null) throw new ArgumentNullException(nameof(roCollection), Exceptions.CANNOT_BE_NULL);
+            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
+            if (index < 0) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.CANNOT_BE_NEGATIVE);
+            if (roCollection.Count > array.Length - index) throw new ArgumentException(Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
 
-            int offset = 0;
+            int offset = index;
             foreach (var item in roCollection)
             {
-                array[index + offset] = item;
+                array[offset] = item;
                 offset++;
             }
         }
 
         public static T[] ToArray<T>(this IEnumerable<T> source) =>
             source is null
-            ? throw new ArgumentNullException(nameof(source), Exceptions.CannotBeNull)
+            ? throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL)
             : new Buffer<T>(source).ToArray();
 
-        public static Custom.List<T> ToList<T>(this IEnumerable<T> source) =>
-            new Custom.List<T>(source); //List constructor checks for null
+        public static T[] ToArrayFixed<T>(this IEnumerable<T> source, int arrayLength)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            int index = 0;
+            T[] arr = new T[arrayLength];
+            foreach (var item in source)
+                arr[index++] = item;
+            return arr;
+        }
+
+        public static List_<T> ToList<T>(this IEnumerable<T> source) =>
+            source is null
+            ? throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL)
+            : new List_<T>(source);
+
+        public static List_<T> ToListFixed<T>(this IEnumerable<T> source, int listCapacity)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            int index = 0;
+            List_<T> list = new List_<T>(listCapacity);
+            foreach (var item in source)
+                list[index++] = item;
+            return list;
+        }
+
+        public static IEnumerable<TResult> Select<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult> selector)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (selector is null) throw new ArgumentNullException(nameof(selector), Exceptions.CANNOT_BE_NULL);
+
+            foreach (var item in source)
+                yield return selector(item);
+        }
 
         private readonly ref struct Buffer<T>
         {
@@ -78,10 +86,11 @@ namespace CustomQuery
                 {
                     if (_count == _items.Length)
                     {
-                        if (_count == int.MaxValue) throw new OverflowException(Exceptions.ArrCapacityExceeded);
+                        if (_count == ARRAY_MAX_LENGTH) throw new OverflowException(Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
 
                         _count *= 2;
-                        T[] newItems = new T[_count < 0 ? int.MaxValue : _count];
+                        if ((uint)_count > ARRAY_MAX_LENGTH) _count = ARRAY_MAX_LENGTH;
+                        T[] newItems = new T[_count];
                         _items.CopyTo(newItems, 0);
                         _items = newItems;
                     }
