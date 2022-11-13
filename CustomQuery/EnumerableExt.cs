@@ -8,7 +8,7 @@ namespace CustomQuery
 {
     public static class EnumerableExt
     {
-        public static void CopyTo<T>(this IReadOnlyCollection<T> roCollection, T[] array, int index)
+        public static void CopyTo_<T>(this IReadOnlyCollection<T> roCollection, T[] array, int index)
         {
             if (roCollection is null) throw new ArgumentNullException(nameof(roCollection), Exceptions.CANNOT_BE_NULL);
             if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
@@ -23,12 +23,12 @@ namespace CustomQuery
             }
         }
 
-        public static T[] ToArray<T>(this IEnumerable<T> source) =>
+        public static T[] ToArray_<T>(this IEnumerable<T> source) =>
             source is null
             ? throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL)
             : new Buffer<T>(source).ToArray();
 
-        public static T[] ToArrayFixed<T>(this IEnumerable<T> source, int arrayLength)
+        public static T[] ToArrayFixed_<T>(this IEnumerable<T> source, int arrayLength)
         {
             if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
 
@@ -39,12 +39,12 @@ namespace CustomQuery
             return arr;
         }
 
-        public static List_<T> ToList<T>(this IEnumerable<T> source) =>
+        public static List_<T> ToList_<T>(this IEnumerable<T> source) =>
             source is null
             ? throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL)
             : new List_<T>(source);
 
-        public static List_<T> ToListFixed<T>(this IEnumerable<T> source, int listCapacity)
+        public static List_<T> ToListFixed_<T>(this IEnumerable<T> source, int listCapacity)
         {
             if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
 
@@ -55,13 +55,73 @@ namespace CustomQuery
             return list;
         }
 
-        public static IEnumerable<TResult> Select<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult> selector)
+        public static IEnumerable<TResult> Select_<TSource, TResult>(this IEnumerable<TSource> source, Func<TSource, TResult> selector)
         {
             if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
             if (selector is null) throw new ArgumentNullException(nameof(selector), Exceptions.CANNOT_BE_NULL);
 
             foreach (var item in source)
                 yield return selector(item);
+        }
+
+        public static bool Contains_<T>(this IEnumerable<T> source, T element)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            if (element == null)
+            {
+                foreach (var item in source)
+                    if (item == null) return true;
+                return false;
+            }
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+                if (comparer.Equals(item, element)) return true;
+            return false;
+        }
+
+        public static int IndexOf_<T>(this IEnumerable<T> source, T element)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            int index = -1;
+            int i = 0;
+
+            if (element == null)
+            {
+                foreach (var item in source)
+                {
+                    if (item == null) index = i;
+                    i++;
+                }
+            }
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+            {
+                if (comparer.Equals(item, element)) index = i;
+                i++;
+            }
+
+            return index;
+        }
+
+        public static int IndexOf_<T>(this IEnumerable<T> source, Predicate<T> predicate)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (predicate is null) throw new ArgumentNullException(nameof(predicate), Exceptions.CANNOT_BE_NULL);
+
+            int index = -1;
+            int i = 0;
+
+            foreach (var item in source)
+            {
+                if (predicate(item)) index = i;
+                i++;
+            }
+
+            return index;
         }
 
         private readonly ref struct Buffer<T>

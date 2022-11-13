@@ -2,6 +2,7 @@
 using System.IO;
 using System.Windows.Forms;
 using Text;
+using CustomQuery;
 
 namespace FileSystem
 {
@@ -38,8 +39,7 @@ namespace FileSystem
                 }
                 Console.WriteLine();
 
-
-                switch (commands[0].ToUpperASCII())
+                switch (commands[0].ToUpperASCII_())
                 {
                     case CREATE:
                         if (commands.Length < 2)
@@ -48,7 +48,15 @@ namespace FileSystem
                             break;
                         }
 
-                        fileStream = File.Create(_defaultDirectory + commands[1]);
+                        string[] fileInfo = commands[1].Split_('/');
+                        fileStream = File.Create(_defaultDirectory + fileInfo[0].TrimEnd_(' '));
+
+                        int index = fileInfo.IndexOf_(str => str[0] == 's' || str[0] == 'S');
+                        if (index != -1)
+                        {
+                            int size = int.Parse(fileInfo[index].Split_(' ')[1]);
+                        }
+
                         break;
 
                     case HELP:
@@ -67,7 +75,7 @@ namespace FileSystem
                             break;
                         }
 
-                        string fullPath = _defaultDirectory + commands[1];
+                        string fullPath = _defaultDirectory + commands[1].TrimEnd_(' ');
                         if (!File.Exists(fullPath))
                         {
                             Console.WriteLine("File doesn't exist. Please enter a valid file name.");

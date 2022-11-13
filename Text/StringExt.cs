@@ -1,5 +1,6 @@
 ﻿using System;
 using ExceptionsNS;
+using CustomQuery;
 
 namespace Text
 {
@@ -8,7 +9,7 @@ namespace Text
         private const int TO_UPPER = 'A' - 'a';
         private const int TO_LOWER = 'a' - 'A';
 
-        public static string ToUpperASCII(this string str)
+        public static string ToUpperASCII_(this string str)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
 
@@ -23,7 +24,7 @@ namespace Text
             return new string(chars);
         }
 
-        public static string ToLowerASCII(this string str)
+        public static string ToLowerASCII_(this string str)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
 
@@ -38,8 +39,21 @@ namespace Text
             return new string(chars);
         }
 
-        public static string PadLeft_(this string str, int widthTotal) => str.PadLeft_(widthTotal, ' ');
+        public static string TrimStart_(this string str, char trim)
+        {
+            int i = 0;
+            while (str[i] == trim && i < str.Length) i++;
+            return str.SubstringAt_(i, str.Length - 1);
+        }
 
+        public static string TrimEnd_(this string str, char trim)
+        {
+            int i = str.Length - 1;
+            while (str[i] == trim && i >= 0) i--;
+            return str.SubstringAt_(0, i);
+        }
+
+        public static string PadLeft_(this string str, int widthTotal) => str.PadLeft_(widthTotal, ' ');
         public static string PadLeft_(this string str, int widthTotal, char pad)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
@@ -54,7 +68,6 @@ namespace Text
         }
 
         public static string PadRight_(this string str, int widthTotal) => str.PadRight_(widthTotal, ' ');
-
         public static string PadRight_(this string str, int widthTotal, char pad)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
@@ -83,7 +96,7 @@ namespace Text
             return new string(chars);
         }
 
-        public static string SubstringAt(this string str, int index1, int index2)
+        public static string SubstringAt_(this string str, int index1, int index2)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
             if ((uint)index1 > (uint)str.Length) throw new ArgumentOutOfRangeException(nameof(index1), Exceptions.INDEX_OUTSIDE);
@@ -100,15 +113,17 @@ namespace Text
             return new string(chars);
         }
 
-        public static string[] Split_(this string str, char separator) => str.Split_(separator, str.Length - 1);
-        public static string[] Split_(this string str, char separator, int maxResults)
+        public static string[] Split_(this string str, char separator) => str.Split_(new char[] { separator }, str.Length - 1);
+        public static string[] Split_(this string str, char separator, int maxResults) => str.Split_(new char[] { separator }, maxResults);
+        public static string[] Split_(this string str, char[] separators) => str.Split_(separators, str.Length - 1);
+        public static string[] Split_(this string str, char[] separators, int maxResults)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
             if (maxResults < 0) throw new ArgumentOutOfRangeException(nameof(maxResults), Exceptions.CANNOT_BE_NEGATIVE);
 
             if (str == "") return Array.Empty<string>();
             if (maxResults == 0) return new string[] { str };
-            if (str.Length == 1) return str[0] == separator ? Array.Empty<string>() : new string[] { str };
+            if (str.Length == 1) return separators.Contains_(str[0]) ? Array.Empty<string>() : new string[] { str };
 
             if (maxResults > str.Length - 1) maxResults = str.Length - 1;
             int[] ranges = new int[maxResults + 2];
@@ -118,7 +133,7 @@ namespace Text
             bool selector = false; // Selects begining or end of output string
             for (int i = 0; stringCount < maxResults && i < str.Length; i++)
             {
-                if (str[i] == separator != selector) continue;
+                if (separators.Contains_(str[i]) != selector) continue;
 
                 if (selector) ranges[splitCount++] = i; // End of new string
                 else
@@ -134,11 +149,11 @@ namespace Text
             string[] strings = new string[stringCount];
 
             for (int i = 0; i < splitCount - 1; i++)
-                strings[i / 2] = str.SubstringAt(ranges[i], ranges[++i] - 1);
+                strings[i / 2] = str.SubstringAt_(ranges[i], ranges[++i] - 1);
 
             if (!(strings[stringCount - 1] is null)) return strings;
 
-            strings[stringCount - 1] = str.SubstringAt(ranges[splitCount - 1], str.Length - 1);
+            strings[stringCount - 1] = str.SubstringAt_(ranges[splitCount - 1], str.Length - 1);
             return strings;
         }
     }

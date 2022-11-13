@@ -46,6 +46,10 @@
     <Compile Include="StringExt.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\CustomQuery\CustomQuery.csproj">
+      <Project>{5c9f0b95-31ca-46b6-af6f-afae3ee1a1d8}</Project>
+      <Name>CustomQuery</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Exceptions\Exceptions.csproj">
       <Project>{30b06b97-68ef-4b65-815e-fc5713d91856}</Project>
       <Name>Exceptions</Name>
