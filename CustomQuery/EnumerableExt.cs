@@ -8,21 +8,6 @@ namespace CustomQuery
 {
     public static class EnumerableExt
     {
-        public static void CopyTo_<T>(this IReadOnlyCollection<T> roCollection, T[] array, int index)
-        {
-            if (roCollection is null) throw new ArgumentNullException(nameof(roCollection), Exceptions.CANNOT_BE_NULL);
-            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
-            if (index < 0) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.CANNOT_BE_NEGATIVE);
-            if (roCollection.Count > array.Length - index) throw new ArgumentException(Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
-
-            int offset = index;
-            foreach (var item in roCollection)
-            {
-                array[offset] = item;
-                offset++;
-            }
-        }
-
         public static T[] ToArray_<T>(this IEnumerable<T> source) =>
             source is null
             ? throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL)
@@ -68,16 +53,42 @@ namespace CustomQuery
         {
             if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
 
-            if (element == null)
-            {
-                foreach (var item in source)
-                    if (item == null) return true;
-                return false;
-            }
-
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
                 if (comparer.Equals(item, element)) return true;
+            return false;
+        }
+
+        public static bool ContainsAny_<T>(this IEnumerable<T> source, params T[] elements) => ContainsAny_(source, (IEnumerable<T>)elements);
+        public static bool ContainsAny_<T>(this IEnumerable<T> source, IEnumerable<T> elements)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (elements is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+                foreach (var element in elements)
+                    if (comparer.Equals(item, element)) return true;
+            return false;
+        }
+
+        public static bool ContainsAll_<T>(this IEnumerable<T> source, params T[] elements) => ContainsAll_(source, (IEnumerable<T>)elements);
+        public static bool ContainsAll_<T>(this IEnumerable<T> source, IEnumerable<T> elements)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (elements is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+
+            var bucket = new Bucket<T>(elements);
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+                for (int i = 0; i < bucket.Count; i++)
+                {
+                    if (comparer.Equals(item, bucket.Buffer.Array[i])) 
+                        bucket.Pop(i);
+                    if (bucket.Count == 0) return true;
+                }
+
             return false;
         }
 
@@ -87,15 +98,6 @@ namespace CustomQuery
 
             int index = -1;
             int i = 0;
-
-            if (element == null)
-            {
-                foreach (var item in source)
-                {
-                    if (item == null) index = i;
-                    i++;
-                }
-            }
 
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
@@ -124,49 +126,87 @@ namespace CustomQuery
             return index;
         }
 
+        public static int IndexOfAny_<T>(this IEnumerable<T> source, params T[] elements) => IndexOfAny_(source, elements);
+        public static int IndexOfAny_<T>(this IEnumerable<T> source, IEnumerable<T> elements)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (elements is null) throw new ArgumentNullException(nameof(elements), Exceptions.CANNOT_BE_NULL);
+
+            int index = -1;
+            int i = 0;
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+            {
+                foreach (var element in elements)
+                    if (comparer.Equals(item, element)) index = i;
+                i++;
+            }
+
+            return index;
+        }
+
         private readonly ref struct Buffer<T>
         {
-            private readonly T[] _items;
-            private readonly int _count;
+            public T[] Array { get; }
+            public int Count { get; }
 
             //source is null ? should be checked beforehand
             public Buffer(IEnumerable<T> source)
             {
                 if (source is ICollection<T> collection)
                 {
-                    _count = collection.Count;
-                    _items = new T[_count];
-                    collection.CopyTo(_items, 0);
+                    Count = collection.Count;
+                    Array = new T[Count];
+                    collection.CopyTo(Array, 0);
                     return;
                 }
 
-                _items = new T[4];
-                _count = 0;
+                Array = new T[4];
+                Count = 0;
                 foreach (var item in source)
                 {
-                    if (_count == _items.Length)
+                    if (Count == Array.Length)
                     {
-                        if (_count == ARRAY_MAX_LENGTH) throw new OverflowException(Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
+                        if (Count == ARRAY_MAX_LENGTH) throw new OverflowException(Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
 
-                        _count *= 2;
-                        if ((uint)_count > ARRAY_MAX_LENGTH) _count = ARRAY_MAX_LENGTH;
-                        T[] newItems = new T[_count];
-                        _items.CopyTo(newItems, 0);
-                        _items = newItems;
+                        Count *= 2;
+                        if ((uint)Count > ARRAY_MAX_LENGTH) Count = ARRAY_MAX_LENGTH;
+                        T[] newItems = new T[Count];
+                        Array.CopyTo(newItems, 0);
+                        Array = newItems;
                     }
-                    _items[_count] = item;
-                    _count++;
+                    Array[Count] = item;
+                    Count++;
                 }
             }
 
             public T[] ToArray()
             {
-                if (_count == 0) return Array.Empty<T>();
-                if (_items.Length == _count) return _items;
+                if (Count == 0) return System.Array.Empty<T>();
+                if (Array.Length == Count) return Array;
 
-                T[] result = new T[_count];
-                _items.CopyTo(result, 0);
+                T[] result = new T[Count];
+                Array.CopyTo(result, 0);
                 return result;
+            }
+        }
+
+        private ref struct Bucket<T>
+        {
+            public Buffer<T> Buffer { get; }
+            public int Count { get; private set; }
+
+            public Bucket(IEnumerable<T> source)
+            {
+                Buffer = new Buffer<T>(source);
+                Count = Buffer.Count;
+            }
+
+            public void Pop(int index)
+            {
+                Count--;
+                Buffer.Array[index] = Buffer.Array[Count];
             }
         }
     }

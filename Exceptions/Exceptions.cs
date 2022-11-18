@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace ExceptionsNS
+﻿namespace ExceptionsNS
 {
     public class Exceptions
     {

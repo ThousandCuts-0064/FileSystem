@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{BF20489F-B080-4906-958F-BC8ABA4A728A}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>FileSystem</RootNamespace>
+    <RootNamespace>FileSystemNS</RootNamespace>
     <AssemblyName>FileSystem</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -49,14 +49,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ByteExt.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Directory.cs" />
+    <Compile Include="FileSystem.cs" />
+    <Compile Include="BootByte.cs" />
     <Compile Include="FormMain.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormMain.Designer.cs">
       <DependentUpon>FormMain.cs</DependentUpon>
     </Compile>
+    <Compile Include="ObjectFlags.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="FormMain.resx">
@@ -70,6 +74,7 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -85,6 +90,10 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj">
+      <Project>{a8c27a83-c2f7-42ee-87cb-30b2ec4d466f}</Project>
+      <Name>Core</Name>
+    </ProjectReference>
     <ProjectReference Include="..\CustomCollections\CustomCollections.csproj">
       <Project>{de331960-08e1-4d31-9660-85d4da3caaf1}</Project>
       <Name>CustomCollections</Name>

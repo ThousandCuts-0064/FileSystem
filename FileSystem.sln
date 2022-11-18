@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomQuery", "CustomQuery\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Text", "Text\Text.csproj", "{CF9224A9-78BE-40A7-8577-13945C4EB77D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{A8C27A83-C2F7-42EE-87CB-30B2EC4D466F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{CF9224A9-78BE-40A7-8577-13945C4EB77D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF9224A9-78BE-40A7-8577-13945C4EB77D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF9224A9-78BE-40A7-8577-13945C4EB77D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8C27A83-C2F7-42EE-87CB-30B2EC4D466F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8C27A83-C2F7-42EE-87CB-30B2EC4D466F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8C27A83-C2F7-42EE-87CB-30B2EC4D466F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8C27A83-C2F7-42EE-87CB-30B2EC4D466F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

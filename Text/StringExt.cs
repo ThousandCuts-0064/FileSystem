@@ -1,26 +1,19 @@
 ﻿using System;
 using ExceptionsNS;
 using CustomQuery;
+using static Text.Constants;
 
 namespace Text
 {
     public static class StringExt
     {
-        private const int TO_UPPER = 'A' - 'a';
-        private const int TO_LOWER = 'a' - 'A';
-
         public static string ToUpperASCII_(this string str)
         {
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
 
             char[] chars = new char[str.Length];
             for (int i = 0; i < str.Length; i++)
-            {
-                char c = str[i];
-                if (c < 'a') continue;
-                if (c > 'z') continue;
-                chars[i] = (char)(c + TO_UPPER);
-            }
+                chars[i] = str[i].ToUpperASCII_();
             return new string(chars);
         }
 
@@ -30,12 +23,7 @@ namespace Text
 
             char[] chars = new char[str.Length];
             for (int i = 0; i < str.Length; i++)
-            {
-                char c = str[i];
-                if (c < 'A') continue;
-                if (c > 'Z') continue;
-                chars[i] = (char)(c + TO_LOWER);
-            }
+                chars[i] = str[i].ToLowerASCII_();
             return new string(chars);
         }
 
@@ -73,6 +61,8 @@ namespace Text
             if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
             if (widthTotal < 0) throw new ArgumentOutOfRangeException(nameof(widthTotal), Exceptions.CANNOT_BE_NEGATIVE);
 
+            if (widthTotal <= str.Length) return str;
+
             char[] chars = new char[widthTotal];
             int i = 0;
             while (i < str.Length) chars[i] = str[i++];
@@ -91,8 +81,8 @@ namespace Text
             if (index == 0 && length == str.Length) return str;
 
             char[] chars = new char[length];
-            while (index < length)
-                chars[index] = str[index++];
+            for (int i = 0; i < length; i++)
+                chars[i] = str[index + i];
             return new string(chars);
         }
 

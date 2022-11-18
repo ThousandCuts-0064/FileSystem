@@ -1,23 +1,23 @@
 ﻿using System;
 using System.Drawing;
-using System.IO;
+//using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Text;
 
-namespace FileSystem
+namespace FileSystemNS
 {
     public partial class FormMain : Form
     {
-        private readonly FileStream _fileStream;
+        private const string HELP = nameof(HELP);
+        private const string HEXDUMP = nameof(HEXDUMP);
+        private const string BINDUMP = nameof(BINDUMP);
 
         public static FormMain Get { get; private set; }
 
-        public FormMain(FileStream fileStream)
+        public FormMain()
         {
-            //if (!(Get is null)) throw new exc
-
             InitializeComponent();
-            _fileStream = fileStream;
             Get = this;
         }
 
@@ -27,17 +27,36 @@ namespace FileSystem
             {
                 while (true)
                 {
-                    if (!Console.KeyAvailable) continue;
+                    string command = Console.ReadLine().ToUpperASCII_();
+                    Console.WriteLine();
 
-                    Console.ReadLine();
-                    Console.WriteLine(1);
+                    switch (command)
+                    {
+                        case HELP:
+                            break;
+
+                        case HEXDUMP:
+                            Console.WriteLine(FileSystem.ToHex());
+                            Console.WriteLine();
+                            break;
+
+                        case BINDUMP:
+                            Console.WriteLine(FileSystem.ToBin());
+                            Console.WriteLine();
+                            break;
+
+                        default:
+                            Console.WriteLine(command + " is not recognized. Type \"help\" for more info.");
+                            break;
+                    }
+                    Console.WriteLine();
                 }
             });
         }
 
         private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
         {
-            _fileStream.Close();
+            FileSystem.Close();
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿
-namespace FileSystem
+namespace FileSystemNS
 {
     partial class FormMain
     {

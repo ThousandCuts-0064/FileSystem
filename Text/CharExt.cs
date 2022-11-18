@@ -1,13 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using static Text.Constants;
 
 namespace Text
 {
     public static class CharExt
     {
-        public static char ToUpper(this char c) => c;
+        public static char ToUpperASCII_(this char c) => 
+            c < 'a' 
+                ? c 
+                : c > 'z' 
+                    ? c 
+                    : (char)(c + CHAR_TO_UPPER);
+
+        public static char ToLowerASCII_(this char c) =>
+            c < 'A'
+                ? c
+                : c > 'Z'
+                    ? c
+                    : (char)(c + CHAR_TO_LOWER);
     }
 }
