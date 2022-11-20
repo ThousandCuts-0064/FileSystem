@@ -4,10 +4,10 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{BF20489F-B080-4906-958F-BC8ABA4A728A}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <RootNamespace>FileSystemNS</RootNamespace>
-    <AssemblyName>FileSystem</AssemblyName>
+    <ProjectGuid>{C3809783-BBD8-4A06-8626-DDF4A6FCCA01}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UI</RootNamespace>
+    <AssemblyName>UI</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -49,35 +49,46 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ByteExt.cs" />
-    <Compile Include="Constants.cs" />
-    <Compile Include="Directory.cs" />
-    <Compile Include="FileHelper.cs" />
-    <Compile Include="FileSystem.cs" />
-    <Compile Include="BootByte.cs" />
-    <Compile Include="Object.cs" />
-    <Compile Include="ObjectFlags.cs" />
+    <Compile Include="FormMain.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormMain.Designer.cs">
+      <DependentUpon>FormMain.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="FormMain.resx">
+      <DependentUpon>FormMain.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Core\Core.csproj">
-      <Project>{a8c27a83-c2f7-42ee-87cb-30b2ec4d466f}</Project>
-      <Name>Core</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CustomCollections\CustomCollections.csproj">
-      <Project>{de331960-08e1-4d31-9660-85d4da3caaf1}</Project>
-      <Name>CustomCollections</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CustomQuery\CustomQuery.csproj">
-      <Project>{5c9f0b95-31ca-46b6-af6f-afae3ee1a1d8}</Project>
-      <Name>CustomQuery</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Exceptions\Exceptions.csproj">
-      <Project>{30b06b97-68ef-4b65-815e-fc5713d91856}</Project>
-      <Name>Exceptions</Name>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FileSystem\FileSystem.csproj">
+      <Project>{BF20489F-B080-4906-958F-BC8ABA4A728A}</Project>
+      <Name>FileSystem</Name>
     </ProjectReference>
     <ProjectReference Include="..\Text\Text.csproj">
-      <Project>{cf9224a9-78be-40a7-8577-13945c4eb77d}</Project>
+      <Project>{CF9224A9-78BE-40A7-8577-13945C4EB77D}</Project>
       <Name>Text</Name>
     </ProjectReference>
   </ItemGroup>

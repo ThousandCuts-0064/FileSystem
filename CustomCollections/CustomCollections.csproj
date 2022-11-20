@@ -42,6 +42,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BitArray_.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="List_.cs" />
@@ -53,6 +54,10 @@
     <Compile Include="Wrapper\Wrapper.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj">
+      <Project>{a8c27a83-c2f7-42ee-87cb-30b2ec4d466f}</Project>
+      <Name>Core</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Exceptions\Exceptions.csproj">
       <Project>{30b06b97-68ef-4b65-815e-fc5713d91856}</Project>
       <Name>Exceptions</Name>

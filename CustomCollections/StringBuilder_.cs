@@ -12,6 +12,13 @@
             return this;
         }
 
+        public StringBuilder_ Prepend(string str)
+        {
+            _strings.Insert(0, str);
+            CharCount += str.Length;
+            return this;
+        }
+
         public override string ToString()
         {
             char[] chars = new char[CharCount];

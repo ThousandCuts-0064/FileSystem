@@ -10,21 +10,26 @@ using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
-    public class Directory : FileSystem.Object
+    public sealed class Directory : Object
     {
         private readonly IList<Directory> _subDirectories;
-        public Directory Root { get; private set; }
         public IReadOnlyList<Directory> SubDirectories { get; }
 
-        public Directory(long address) : base(address) { }
+        private Directory(FileSystem fileSystem, bool isNew) : base(fileSystem, isNew) { } // Only for root directory
 
-        private Directory(long address, string name, ObjectFlags objectFlags, Directory root, IList<Directory> subDirectories) : base(address, name, objectFlags)
+        private Directory(FileSystem fileSystem, Directory root, long address) : base(fileSystem, root, address) { }
+
+        private Directory(FileSystem fileSystem, Directory root, long address, string name, ObjectFlags objectFlags, IList<Directory> subDirectories) : base(fileSystem, root, address, name, objectFlags)
         {
-            Root = root;
             _subDirectories = subDirectories;
             SubDirectories = subDirectories.ToReadOnly();
         }
-       
+
+        internal static Directory CreateRoot(FileSystem fileSystem) => new Directory(fileSystem, true);
+        internal static Directory LoadRoot(FileSystem fileSystem) => new Directory(fileSystem, false);
+
+        public Directory CreateSubdirectory(string name) =>
+            new Directory(FileSystem, this, FileSystem.FindFreeSector());
 
         public SetRootResult TrySetRoot(Directory directory)
         {

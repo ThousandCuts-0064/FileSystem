@@ -29,13 +29,13 @@ namespace CustomCollections
 
         public T this[int index]
         {
-            get => (uint)index > (uint)Count // negatives will be cast to more than int.Max
-                ? throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE)
-                : _array[index];
+            get => (uint)index < (uint)Count // negatives will be cast to more than int.Max
+                ? _array[index]
+                : throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
 
             set
             {
-                if ((uint)index > (uint)Count)
+                if ((uint)index >= (uint)Count)
                     throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
 
                 _array[index] = value;

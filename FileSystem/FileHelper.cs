@@ -8,7 +8,7 @@ using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
-    internal static class Program
+    public static class FileHelper
     {
         private const string CREATE = nameof(CREATE);
         private const string HELP = nameof(HELP);
@@ -16,15 +16,8 @@ namespace FileSystemNS
         private const int PAD_COUNT = 10;
         private static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
 
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        private static void Main()
+        public static FileSystem Open()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-
             FileStream fileStream = null;
             do
             {
@@ -67,12 +60,18 @@ namespace FileSystemNS
                             break;
                         }
 
-                        ulong sectorCount = bootSectorBytes.ToULong(TOTAL_SIZE_INDEX) / bootSectorBytes.ToUShort(SECTOR_SIZE_INDEX);
+                        ulong totalSize = bootSectorBytes.ToULong(TOTAL_SIZE_INDEX);
+                        ulong sectorCount = totalSize / bootSectorBytes.ToUShort(SECTOR_SIZE_INDEX);
                         for (int y = 0; y < ULONG_BYTES; y++)
                             bootSectorBytes[SECTOR_COUNT_INDEX + y] = sectorCount.GetByte(y);
 
                         fileStream = File.Create(_defaultDirectory + fileName);
                         fileStream.Write(bootSectorBytes, 0, BOOT_SECTOR_SIZE);
+
+                        long size = (long)totalSize;
+                        for (long i = BOOT_SECTOR_SIZE; i < size; i++)
+                            fileStream.WriteByte(0);
+
                         fileStream.Position = 0;
                         fileStream.WriteByte((byte)BootByte.All); // Finally set first bit to true to signal correct file initializationl
                         break;
@@ -112,9 +111,7 @@ namespace FileSystemNS
             }
             while (fileStream is null);
 
-            FileSystem.Open(fileStream);
-            Application.Run(new FormMain());
-            Console.WriteLine(1);
+            return new FileSystem(fileStream);
         }
 
         private static string PadCommand(string command) => command.PadRight_(PAD_COUNT);
