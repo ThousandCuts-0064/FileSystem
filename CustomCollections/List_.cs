@@ -144,8 +144,14 @@ namespace CustomCollections
             return -1;
         }
 
-        public void CopyTo(T[] array, int arrayIndex) =>
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
+            if (array.Length < Count) throw new ArgumentOutOfRangeException(nameof(array), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new ArgumentOutOfRangeException(nameof(arrayIndex), Exceptions.INDEX_OUTSIDE);
+
             _array.CopyTo(array, arrayIndex);
+        }
 
         public bool Remove(T item)
         {

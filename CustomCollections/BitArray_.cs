@@ -10,7 +10,24 @@ namespace CustomCollections
     {
         private readonly byte[] _bytes;
         public int Count { get; private set; }
+        public int ByteCount => _bytes.Length;
         bool ICollection<bool>.IsReadOnly => false;
+
+        public bool this[int index]
+        {
+            get => (uint)index < (uint)Count
+                ? (_bytes[index / BYTE_BITS] & 1 << BYTE_LAST_BIT - index) == 1
+                : throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
+
+            set
+            {
+                if ((uint)index >= (uint)Count)
+                    throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
+
+                int val = sbyte.MinValue >> index % BYTE_BITS;
+                _bytes[index / BYTE_BITS] = (byte)(value ? val : ~val);
+            }
+        }
 
         public BitArray_(byte[] bytes)
         {
@@ -32,23 +49,13 @@ namespace CustomCollections
             Count = lenth;
         }
 
-        public bool this[int index]
-        {
-            get => (uint)index < (uint)Count
-                ? (_bytes[index / BYTE_BITS] & (sbyte.MinValue >> index % BYTE_BITS)) == 1
-                : throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
-
-            set
-            {
-                if ((uint)index >= (uint)Count)
-                    throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
-
-                int val = sbyte.MinValue >> index % BYTE_BITS;
-                _bytes[index / BYTE_BITS] = (byte)(value ? val : ~val);
-            }
-        }
-
         public byte GetByte(int index) => _bytes[index];
+        public byte[] GetBytes()
+        {
+            byte[] bytes = new byte[_bytes.Length];
+            Array.Copy(_bytes, bytes, _bytes.Length);
+            return bytes;
+        }
 
         public bool Contains(bool item)
         {
@@ -107,7 +114,8 @@ namespace CustomCollections
         public void CopyTo(bool[] array, int arrayIndex)
         {
             if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
-            if ((uint)arrayIndex >= (uint)Count) throw new ArgumentOutOfRangeException(nameof(arrayIndex), Exceptions.INDEX_OUTSIDE);
+            if (array.Length < Count) throw new ArgumentOutOfRangeException(nameof(array), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new ArgumentOutOfRangeException(nameof(arrayIndex), Exceptions.INDEX_OUTSIDE);
 
             while (arrayIndex < Count)
                 array[arrayIndex] = this[arrayIndex++];

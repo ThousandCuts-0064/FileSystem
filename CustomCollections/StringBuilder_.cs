@@ -2,19 +2,19 @@
 {
     public class StringBuilder_
     {
-        private readonly List_<string> _strings = new List_<string>();
+        private readonly LinkedList_<string> _strings = new LinkedList_<string>();
         public int CharCount { get; private set; }
 
         public StringBuilder_ Append(string str)
         {
-            _strings.Add(str);
+            _strings.AddLast(str);
             CharCount += str.Length;
             return this;
         }
 
         public StringBuilder_ Prepend(string str)
         {
-            _strings.Insert(0, str);
+            _strings.AddFirst(str);
             CharCount += str.Length;
             return this;
         }
@@ -23,9 +23,9 @@
         {
             char[] chars = new char[CharCount];
             int index = 0;
-            for (int s = 0; s < _strings.Count; s++)
+            for (var node = _strings.First; !(node is null); node = node.Next)
             {
-                string str = _strings[s];
+                string str = node.Item;
                 for (int c = 0; c < str.Length; c++)
                     chars[index++] = str[c];
             }

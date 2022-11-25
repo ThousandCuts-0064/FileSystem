@@ -45,11 +45,15 @@
     <Compile Include="BitArray_.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Extensions.cs" />
+    <Compile Include="LinkedListNode_.cs" />
+    <Compile Include="LinkedList_.cs" />
     <Compile Include="List_.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReadOnlyList.cs" />
+    <Compile Include="ReadOnlyCollection_.cs" />
+    <Compile Include="ReadOnlyList_.cs" />
     <Compile Include="StringBuilder_.cs" />
     <Compile Include="Wrapper\IReadOnlyWrapper.cs" />
+    <Compile Include="Wrapper\IWrapper.cs" />
     <Compile Include="Wrapper\ReadOnlyWrapper.cs" />
     <Compile Include="Wrapper\Wrapper.cs" />
   </ItemGroup>

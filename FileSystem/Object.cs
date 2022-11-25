@@ -8,82 +8,55 @@ using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
-    public class Object
+    public abstract class Object
     {
-        internal const int NAME_INDEX = 1;
-        internal const int OBJECT_FLAGS_INDEX = 0;
-
-        private string _name;
         private string _fullName;
-        private ObjectFlags _objectFlags;
-        private protected readonly FileSystem FileSystem;
-        private protected FileStream Stream => FileSystem.Stream;
-        public Directory Root { get; private set; }
-        public string Name => _name ?? DeserializeName();
-        public string FullName => _fullName ?? GetFullName();
-        public long Adress { get; }
-        public ObjectFlags ObjectFlags => ObjectFlags == default ? DeserializeObjectFlags() : _objectFlags;
 
-        private protected Object(FileSystem fileSystem, bool isNew) // Only for root directory
+        private protected FileSystem FileSystem { get; }
+
+        internal long Address { get; }
+        internal long ByteCount { get; private set; }
+        internal ObjectFlags ObjectFlags { get; private set; }
+
+        public Directory Root { get; private set; }
+        public string Name { get; private set; }
+        public string FullName => _fullName ?? GetFullName();
+
+        private protected Object(FileSystem fileSystem, long address, ObjectFlags objectFlags, string name, long byteCount) // Only for root directory
         {
             FileSystem = fileSystem;
-            Adress = BOOT_SECTOR_SIZE + (long)FileSystem.BitmapBytes;
-            _name = nameof(Root);
-            _objectFlags = ObjectFlags.System | ObjectFlags.Folder;
-
-            if (isNew)
-            {
-                fileSystem.AllocateSector(Adress);
-                Stream.Position = Adress;
-                Stream.WriteByte((byte)_objectFlags);
-                byte[] name = Encoding.Unicode.GetBytes(_name);
-                Stream.Write(name, 0, name.Length);
-            }
+            Address = address;
+            ObjectFlags = objectFlags;
+            ByteCount = byteCount;
+            Name = name;
         }
 
-        private protected Object(FileSystem fileSystem, Directory root, long adress)
+        private protected Object(FileSystem fileSystem, Directory root, long address, string name, ObjectFlags objectFlags)
         {
             FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem), Exceptions.CANNOT_BE_NULL);
             Root = root ?? throw new ArgumentNullException(nameof(root), Exceptions.CANNOT_BE_NULL);
-            Adress = adress >= 0 ? adress : throw new ArgumentOutOfRangeException(nameof(adress), Exceptions.CANNOT_BE_NEGATIVE);
+            Address = address >= 0 ? address : throw new ArgumentOutOfRangeException(nameof(address), Exceptions.CANNOT_BE_NEGATIVE);
+            Name = name ?? throw new ArgumentNullException(nameof(name), Exceptions.CANNOT_BE_NULL);
+            Name = name.Length <= NAME_MAX_LENGTH ? name : throw new ArgumentOutOfRangeException($"{nameof(name)}.{nameof(name.Length)}", Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
+            ObjectFlags = objectFlags;
         }
 
-        private protected Object(FileSystem fileSystem, Directory root, long adress, string name, ObjectFlags objectFlags) : this(fileSystem, root, adress)
-        {
-            _name = name.Length <= NAME_MAX_LENGTH ? name : throw new ArgumentOutOfRangeException($"{nameof(name)}.{nameof(name.Length)}", Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
-            _objectFlags = objectFlags;
-        }
-
-        private string DeserializeName()
-        {
-            byte[] name = new byte[NAME_BYTES];
-            Stream.Position = Adress + NAME_INDEX;
-            Stream.Read(name, 0, NAME_BYTES);
-            _name = Encoding.Unicode.GetString(name);
-            return _name;
-        }
+        internal abstract void DeserializeBytes(byte[] bytes);
+        internal abstract byte[] SerializeBytes();
 
         private string GetFullName()
         {
             StringBuilder_ sb = new StringBuilder_();
             Object curr = this;
-            do
+            sb.Prepend(curr.Name);
+            curr = curr.Root;
+            while (!(curr is null))
             {
-                sb.Prepend(curr.Name).Prepend("\\");
+                sb.Prepend("\\").Prepend(curr.Name);
                 curr = curr.Root;
             }
-            while (!(curr is null));
             _fullName = sb.ToString();
             return _fullName;
-        }
-
-        private ObjectFlags DeserializeObjectFlags()
-        {
-            byte[] objectFlags = new byte[1];
-            Stream.Position = Adress + OBJECT_FLAGS_INDEX;
-            Stream.Read(objectFlags, 0, 1);
-            _objectFlags = (ObjectFlags)objectFlags[0];
-            return _objectFlags;
         }
 
         public SetNameResult TrySetName(string name)
@@ -92,7 +65,7 @@ namespace FileSystemNS
             if (name == "") return SetNameResult.NameWasEmpty;
             if (name.Length > NAME_MAX_LENGTH) return SetNameResult.NameExceededMaxLength;
 
-            _name = name;
+            Name = name;
             return SetNameResult.Success;
         }
 

@@ -52,6 +52,10 @@
       <Project>{a8c27a83-c2f7-42ee-87cb-30b2ec4d466f}</Project>
       <Name>Core</Name>
     </ProjectReference>
+    <ProjectReference Include="..\CustomCollections\CustomCollections.csproj">
+      <Project>{de331960-08e1-4d31-9660-85d4da3caaf1}</Project>
+      <Name>CustomCollections</Name>
+    </ProjectReference>
     <ProjectReference Include="..\CustomQuery\CustomQuery.csproj">
       <Project>{5c9f0b95-31ca-46b6-af6f-afae3ee1a1d8}</Project>
       <Name>CustomQuery</Name>

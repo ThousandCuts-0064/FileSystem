@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace CustomCollections
 {
-    public class Wrapper<T> : IReadOnlyWrapper<T>
+    public class Wrapper<T> : IWrapper<T>, IReadOnlyWrapper<T>
     {
-        public T Item { get; set; }
+        public virtual T Item { get; set; }
     }
 }

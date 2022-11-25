@@ -14,11 +14,11 @@ namespace FileSystemNS
         private const string HELP = nameof(HELP);
         private const string OPEN = nameof(OPEN);
         private const int PAD_COUNT = 10;
-        private static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
+        public static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
 
         public static FileSystem Open()
         {
-            FileStream fileStream = null;
+            FileSystem fileSystem = null;
             do
             {
                 Console.WriteLine("Chose a file or type \"help\" for more info.");
@@ -53,27 +53,15 @@ namespace FileSystemNS
                             break;
                         }
 
-                        string error = FileInfoToBytes(fileInfo, out byte[] bootSectorBytes);
-                        if (!(error is null))
+                        string error = FileInfoToBytes(fileInfo, out long totalSize, out ushort sectorSize);
+
+                        if (error is null)
                         {
-                            Console.WriteLine(error);
+                            fileSystem = FileSystem.Create(File.Create(_defaultDirectory + fileName), totalSize, sectorSize);
                             break;
                         }
 
-                        ulong totalSize = bootSectorBytes.ToULong(TOTAL_SIZE_INDEX);
-                        ulong sectorCount = totalSize / bootSectorBytes.ToUShort(SECTOR_SIZE_INDEX);
-                        for (int y = 0; y < ULONG_BYTES; y++)
-                            bootSectorBytes[SECTOR_COUNT_INDEX + y] = sectorCount.GetByte(y);
-
-                        fileStream = File.Create(_defaultDirectory + fileName);
-                        fileStream.Write(bootSectorBytes, 0, BOOT_SECTOR_SIZE);
-
-                        long size = (long)totalSize;
-                        for (long i = BOOT_SECTOR_SIZE; i < size; i++)
-                            fileStream.WriteByte(0);
-
-                        fileStream.Position = 0;
-                        fileStream.WriteByte((byte)BootByte.All); // Finally set first bit to true to signal correct file initializationl
+                        Console.WriteLine(error);
                         break;
 
                     case HELP:
@@ -94,13 +82,14 @@ namespace FileSystemNS
                         }
 
                         string fullPath = _defaultDirectory + commands[1].TrimEnd_(' ');
-                        if (!File.Exists(fullPath))
+
+                        if (File.Exists(fullPath))
                         {
-                            Console.WriteLine("File doesn't exist. Please enter a valid file name.");
+                            fileSystem = FileSystem.Open(File.Open(fullPath, FileMode.Open));
                             break;
                         }
 
-                        fileStream = File.Open(fullPath, FileMode.Open);
+                        Console.WriteLine("File doesn't exist. Please enter a valid file name.");
                         break;
 
                     default:
@@ -109,53 +98,43 @@ namespace FileSystemNS
                 }
                 Console.WriteLine();
             }
-            while (fileStream is null);
+            while (fileSystem is null);
 
-            return new FileSystem(fileStream);
+            return fileSystem;
         }
 
         private static string PadCommand(string command) => command.PadRight_(PAD_COUNT);
 
-        private static string FileInfoToBytes(string[] fileInfo, out byte[] bytes)
+        private static string FileInfoToBytes(string[] fileInfo, out long totalSize, out ushort sectorSize)
         {
-            bytes = new byte[BOOT_SECTOR_SIZE];
+            totalSize = 0;
+            sectorSize = 0;
             char[] found = new char[fileInfo.Length - 1]; // fileInfo[0] is name
-            string error = null;
             int foundIndex = 0;
 
-            for (int i = 1; error is null && i < fileInfo.Length; i++)
+            for (int i = 1; i < fileInfo.Length; i++)
             {
                 string str = fileInfo[i];
                 char c = str[0];
-                if (found.Contains_(c))
-                {
-                    error = $"/{c} appears more than once.";
-                    break;
-                }
+                if (found.Contains_(c)) return $"/{c} appears more than once.";
+
                 found[foundIndex++] = c;
                 str = str.Split_(' ', 2)[1].TrimEnd_(' ');
                 switch (c)
                 {
                     case 'S':
-                        if (ushort.TryParse(str, out ushort sectorSize))
-                        {
-                            for (int y = 0; y < USHORT_BYTES; y++)
-                                bytes[SECTOR_SIZE_INDEX + y] = sectorSize.GetByte(y);
-                        }
-                        else error = "Invalid sector size.";
+                        if (!ushort.TryParse(str, out sectorSize))
+                            return "Invalid sector size.";
+
                         break;
 
                     case 'T':
-                        if (!long.TryParse(str.Substring_(0, str.Length - 2).TrimEnd_(' '), out long totalSize))
-                        {
-                            error = "Invalid total size.";
-                            break;
-                        }
+                        if (!long.TryParse(str.Substring_(0, str.Length - 2).TrimEnd_(' '), out totalSize))
+                            return "Invalid total size.";
+
                         if (totalSize < 0)
-                        {
-                            error = "Total size cannot be negative";
-                            break;
-                        }
+                            return "Total size cannot be negative";
+
                         string unit = str.Substring_(str.Length - 2, 2);
                         switch (unit)
                         {
@@ -169,24 +148,19 @@ namespace FileSystemNS
 
                             case "KB":
                                 totalSize *= 1024;
-                                for (int y = 0; y < ULONG_BYTES; y++)
-                                    bytes[TOTAL_SIZE_INDEX + y] = totalSize.GetByte(y);
                                 break;
 
                             default:
-                                error = nameof(unit) + " is not recognized. Try KB | MB | GB instead.";
-                                break;
+                                return unit + " is not recognized. Try KB | MB | GB instead.";
                         }
                         break;
 
                     default:
-                        error = $"/{c} is not recognized";
-                        break;
+                        return $"/{c} is not recognized";
                 }
             }
 
-            if (!found.ContainsAll_('T', 'S')) error = "Not all mandatory parameters are present.";
-            return error;
+            return found.ContainsAll_('T', 'S') ? null : "Not all mandatory parameters are present.";
         }
 
         private static void HelpCommand(string command)

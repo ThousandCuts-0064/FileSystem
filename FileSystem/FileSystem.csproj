@@ -52,11 +52,13 @@
     <Compile Include="ByteExt.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Directory.cs" />
+    <Compile Include="Enums\FS.cs" />
     <Compile Include="FileHelper.cs" />
+    <Compile Include="FileStreamExt.cs" />
     <Compile Include="FileSystem.cs" />
-    <Compile Include="BootByte.cs" />
+    <Compile Include="Enums\BootByte.cs" />
     <Compile Include="Object.cs" />
-    <Compile Include="ObjectFlags.cs" />
+    <Compile Include="Enums\ObjectFlags.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

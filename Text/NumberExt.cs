@@ -1,11 +1,12 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using ExceptionsNS;
 using static Core.Constants;
 
 namespace Text
 {
     public static class NumberExt
     {
-        private static readonly char[] _hex = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+        public static readonly char[] _hex = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
         public static string ToBin_(this sbyte b) => ((byte)b).ToBin_();
         public static string ToBin_(this byte b)
@@ -45,6 +46,11 @@ namespace Text
 
         public static string ToHex_(this byte b) =>
             new string(new char[] { _hex[b / 16], _hex[b % 16] });
+
+        public static char ToHexChar_(this byte b, bool left) => left ? _hex[b / 16] : _hex[b % 16];
+        public static char ToBinChar_(this byte b, int index) => index < BYTE_BITS
+            ? ToBinChar((b & 1 << BYTE_LAST_BIT - index) != 0)
+            : throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
 
         private static char ToBinChar(bool b) => b ? '1' : '0';
     }

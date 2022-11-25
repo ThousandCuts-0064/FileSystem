@@ -29,6 +29,10 @@ namespace Text
 
         public static string TrimStart_(this string str, char trim)
         {
+            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+
+            if (str is "") return str;
+
             int i = 0;
             while (str[i] == trim && i < str.Length) i++;
             return str.SubstringAt_(i, str.Length - 1);
@@ -36,6 +40,10 @@ namespace Text
 
         public static string TrimEnd_(this string str, char trim)
         {
+            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+
+            if (str is "") return str;
+
             int i = str.Length - 1;
             while (str[i] == trim && i >= 0) i--;
             return str.SubstringAt_(0, i);

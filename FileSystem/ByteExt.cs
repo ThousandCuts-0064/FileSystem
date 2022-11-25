@@ -1,18 +1,18 @@
 ﻿using System;
 using ExceptionsNS;
+using Text;
 using static Core.Constants;
 
 namespace FileSystemNS
 {
     public static class ByteExt
     {
-        private const int USHORT_LAST_BYTE = USHORT_BYTES - 1;
-        private const int UINT_LAST_BYTE = UINT_BYTES - 1;
-        private const int ULONG_LAST_BYTE = ULONG_BYTES - 1;
-
-        public static ushort ToUShort(this byte[] bytes, int index)
+        public static short GetShort(this byte[] bytes, int index) => (short)GetUShort(bytes, index);
+        public static ushort GetUShort(this byte[] bytes, int index)
         {
             if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < USHORT_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)index > (uint)(bytes.Length - USHORT_BYTES)) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
 
             ushort value = 0;
             value |= bytes[index];
@@ -24,9 +24,12 @@ namespace FileSystemNS
             return value;
         }
 
-        public static uint ToUInt(this byte[] bytes, int index)
+        public static int GetInt(this byte[] bytes, int index) => (int)GetUInt(bytes, index);
+        public static uint GetUInt(this byte[] bytes, int index)
         {
             if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < UINT_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)index > (uint)(bytes.Length - UINT_BYTES)) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
 
             uint value = 0;
             value |= bytes[index];
@@ -38,9 +41,12 @@ namespace FileSystemNS
             return value;
         }
 
-        public static ulong ToULong(this byte[] bytes, int index)
+        public static long GetLong(this byte[] bytes, int index) => (long)GetULong(bytes, index);
+        public static ulong GetULong(this byte[] bytes, int index)
         {
             if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < ULONG_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)index > (uint)(bytes.Length - ULONG_BYTES)) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
 
             ulong value = 0;
             value |= bytes[index];
@@ -66,5 +72,71 @@ namespace FileSystemNS
         public static byte GetByte(this ulong value, int index) => (uint)index < ULONG_BYTES
                 ? (byte)(value >> ((ULONG_LAST_BYTE - index) * ULONG_BYTES))
                 : throw new ArgumentOutOfRangeException(nameof(value), Exceptions.INDEX_OUTSIDE);
+
+        public static void GetBytes(this short value, byte[] bytes, int offset) => GetBytes((ushort)value, bytes, offset);
+        public static void GetBytes(this ushort value, byte[] bytes, int offset)
+        {
+            if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < USHORT_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)offset > (uint)(bytes.Length - USHORT_BYTES)) throw new ArgumentOutOfRangeException(nameof(offset), Exceptions.INDEX_OUTSIDE);
+
+            for (int i = 0; i < USHORT_BYTES; i++)
+                bytes[offset + i] = value.GetByte(i);
+        }
+
+        public static void GetBytes(this int value, byte[] bytes, int offset) => GetBytes((uint)value, bytes, offset);
+        public static void GetBytes(this uint value, byte[] bytes, int offset)
+        {
+            if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < UINT_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)offset > (uint)(bytes.Length - UINT_BYTES)) throw new ArgumentOutOfRangeException(nameof(offset), Exceptions.INDEX_OUTSIDE);
+
+            for (int i = 0; i < UINT_BYTES; i++)
+                bytes[offset + i] = value.GetByte(i);
+        }
+
+        public static void GetBytes(this long value, byte[] bytes, int offset) => GetBytes((ulong)value, bytes, offset);
+        public static void GetBytes(this ulong value, byte[] bytes, int offset)
+        {
+            if (bytes is null) throw new ArgumentNullException(nameof(bytes), Exceptions.CANNOT_BE_NULL);
+            if (bytes.Length < USHORT_BYTES) throw new ArgumentOutOfRangeException(nameof(bytes), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
+            if ((uint)offset > (uint)(bytes.Length - ULONG_BYTES)) throw new ArgumentOutOfRangeException(nameof(offset), Exceptions.INDEX_OUTSIDE);
+
+            for (int i = 0; i < ULONG_BYTES; i++)
+                bytes[offset + i] = value.GetByte(i);
+        }
+
+        public static string ToHex_(this byte[] bytes)
+        {
+            char[] chars = new char[bytes.Length * 3 - 1];
+
+            chars[0] = bytes[0].ToHexChar_(true);
+            chars[1] = bytes[0].ToHexChar_(false);
+            for (int i = 1; i < bytes.Length; i++)
+            {
+                chars[i * 3 - 1] = ' ';
+                chars[i * 3 + 0] = bytes[i].ToHexChar_(true);
+                chars[i * 3 + 1] = bytes[i].ToHexChar_(false);
+            }
+
+            return new string(chars);
+        }
+
+        public static string ToBin_(this byte[] bytes)
+        {
+            int binWithSpace = BYTE_BITS + 1;
+            char[] chars = new char[bytes.Length * binWithSpace - 1];
+
+            for (int i = 0; i < BYTE_BITS; i++)
+                chars[i] = bytes[0].ToBinChar_(i);
+            for (int i = 1; i < bytes.Length; i++)
+            {
+                chars[i * binWithSpace - 1] = ' ';
+                for (int y = 0; y < BYTE_BITS; y++)
+                    chars[i * binWithSpace + y] = bytes[i].ToBinChar_(y);
+            }
+
+            return new string(chars);
+        }
     }
 }

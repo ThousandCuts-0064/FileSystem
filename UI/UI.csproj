@@ -83,6 +83,10 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\CustomCollections\CustomCollections.csproj">
+      <Project>{DE331960-08E1-4D31-9660-85D4DA3CAAF1}</Project>
+      <Name>CustomCollections</Name>
+    </ProjectReference>
     <ProjectReference Include="..\FileSystem\FileSystem.csproj">
       <Project>{BF20489F-B080-4906-958F-BC8ABA4A728A}</Project>
       <Name>FileSystem</Name>
