@@ -14,16 +14,16 @@ namespace FileSystemNS
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
 
-        internal ushort SectorSize { get; }
         internal long SectorCount { get; }
+        internal ushort SectorSize { get; }
         internal long RootAddress { get; }
         internal long AddressNextSectorBytesIndex { get; }
         internal long BitmapBytes => _bitMap.ByteCount;
 
         public long TotalSize { get; }
-        public Directory RootDir { get; private set; }
+        public Directory RootDirectory { get; private set; }
 
-        // Partial initialization. RootDir required.
+        // Partial initialization. RootDirectory required.
         private FileSystem(FileStream fileStream, long totalSize, ushort sectorSize, long sectorCount, BitArray_ bitmap)
         {
             _stream = fileStream;
@@ -36,16 +36,16 @@ namespace FileSystemNS
             AddressNextSectorBytesIndex = SectorCount - ADDRESS_BYTES;
         }
 
-        public static FileSystem Create(FileStream fileStream, long totalSize, ushort sectorSize)
+        public static FileSystem Create(FileStream fileStream, string name, long totalSize, ushort sectorSize)
         {
             long sectorCount = totalSize / sectorSize;
             var bitMap = new BitArray_(sectorCount / BYTE_BITS + sectorCount % BYTE_BITS > 0 ? 1 : 0); // BitmapBytes may be too large
 
             FileSystem fileSystem = new FileSystem(
-                fileStream ?? throw new ArgumentNullException(nameof(fileStream), Exceptions.CANNOT_BE_NULL),
+                fileStream ?? throw new ArgumentNullException(nameof(fileStream)),
                 totalSize, sectorSize, sectorCount, bitMap);
 
-            fileSystem.RootDir = Directory.CreateRoot(fileSystem);
+            fileSystem.RootDirectory = Directory.CreateRoot(fileSystem, name);
 
             byte[] bootSectorBytes = new byte[BOOT_SECTOR_SIZE];
             totalSize.GetBytes(bootSectorBytes, TOTAL_SIZE_INDEX);
@@ -61,7 +61,7 @@ namespace FileSystemNS
 
         public static FileSystem Open(FileStream fileStream)
         {
-            if (fileStream is null) throw new ArgumentNullException(nameof(fileStream), Exceptions.CANNOT_BE_NULL);
+            if (fileStream is null) throw new ArgumentNullException(nameof(fileStream));
 
             byte[] bytes = new byte[BOOT_SECTOR_SIZE];
             fileStream.ReadAt(0, bytes, 0, BOOT_SECTOR_SIZE);
@@ -76,7 +76,7 @@ namespace FileSystemNS
 
             FileSystem fileSystem = new FileSystem(fileStream, totalSize, sectorSize, sectorCount, bitmap);
 
-            fileSystem.RootDir = Directory.LoadRoot(fileSystem);
+            fileSystem.RootDirectory = Directory.LoadRoot(fileSystem);
 
             // In case of forced shutdown the bit will be true
             fileStream.WriteByteAt(0, (byte)(fileStream.ReadByteAt(0) | (byte)BootByte.ForcedShutdown));
@@ -123,22 +123,22 @@ namespace FileSystemNS
 
             if (fs.HasFlag(FS.Root))
             {
-                strs.Add(((byte)_stream.ReadByteAt(RootDir.Address)).ToHex_());
+                strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address)).ToHex_());
 
                 byte[] bytes = new byte[NAME_BYTES];
-                _stream.ReadAt(RootDir.Address + 1, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + 1, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
 
                 bytes = new byte[LONG_BYTES];
-                _stream.ReadAt(RootDir.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
 
                 bytes = new byte[SectorSize - 1 - NAME_BYTES - LONG_BYTES - ADDRESS_BYTES];
-                _stream.ReadAt(RootDir.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
 
                 bytes = new byte[ADDRESS_BYTES];
-                _stream.ReadAt(RootDir.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
             }
 
@@ -184,22 +184,22 @@ namespace FileSystemNS
 
             if (fs.HasFlag(FS.Root))
             {
-                strs.Add(((byte)_stream.ReadByteAt(RootDir.Address)).ToBin_());
+                strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address)).ToBin_());
 
                 byte[] bytes = new byte[NAME_BYTES];
-                _stream.ReadAt(RootDir.Address + NAME_INDEX, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + NAME_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
 
                 bytes = new byte[LONG_BYTES];
-                _stream.ReadAt(RootDir.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
 
                 bytes = new byte[SectorSize - 1 - NAME_BYTES - LONG_BYTES - ADDRESS_BYTES];
-                _stream.ReadAt(RootDir.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
 
                 bytes = new byte[ADDRESS_BYTES];
-                _stream.ReadAt(RootDir.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
             }
 
@@ -241,19 +241,19 @@ namespace FileSystemNS
             return bytes.GetLong(0);
         }
 
-        internal void SerializeProperties(Object obj)
-        {
-            SerializeObjectFlags(obj);
-            SerializeName(obj);
-            SerializeByteCount(obj);
-        }
-
         internal void SerializeByteCount(Object obj) => SetByteCountAt(obj.Address, obj.ByteCount);
         internal void SetByteCountAt(long address, long byteCount)
         {
             byte[] bytes = new byte[LONG_BYTES];
             byteCount.GetBytes(bytes, 0);
-            _stream.WriteAt(address + BYTE_COUNT_INDEX, bytes, 0, LONG_BYTES);
+            _stream.WriteAt(address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
+        }
+
+        internal void SerializeProperties(Object obj)
+        {
+            SerializeObjectFlags(obj);
+            SerializeName(obj);
+            SerializeByteCount(obj);
         }
 
         internal void DeserializeAllInfoBytes(Object obj) => obj.DeserializeBytes(GetAllInfoBytesAt(obj.Address, checked((int)obj.ByteCount)));
@@ -265,7 +265,7 @@ namespace FileSystemNS
             return bytes;
         }
         internal void GetAllInfoBytesAt(long address, byte[] bytes) => GetAllInfoBytesAt(address, bytes, 0, bytes.Length);
-        internal void GetAllInfoBytesAt(long address, byte[] bytes, int offset, int count) => _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, offset, count);
+        internal void GetAllInfoBytesAt(long address, byte[] bytes, int index, int count) => _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, index, count);
 
         internal void SerializeAllInfoBytes(Object obj)
         {
@@ -275,7 +275,14 @@ namespace FileSystemNS
         }
 
         internal void SetInfoBytesAt(long address, byte[] bytes) => SetInfoBytesAt(address, bytes, 0, bytes.Length);
-        internal void SetInfoBytesAt(long address, byte[] bytes, int offset, int count) => _stream.WriteAt(address + INFO_BYTES_INDEX, bytes, offset, count);
+        internal void SetInfoBytesAt(long address, byte[] bytes, int index, int count) => _stream.WriteAt(address + INFO_BYTES_INDEX, bytes, index, count);
+
+        internal void OverrideInfoBytes(Object obj, long addressAt, byte[] bytes) => OverrideInfoBytesAt(obj.Address, addressAt, bytes);
+        internal void OverrideInfoBytesAt(long addressObj, long addressAt, byte[] bytes) => OverrideInfoBytesAt(addressObj, addressAt, bytes, 0, bytes.Length);
+        internal void OverrideInfoBytesAt(long addressObj, long addressAt, byte[] bytes, int index, int count)
+        {
+            _stream.WriteAt(addressObj + INFO_BYTES_INDEX + addressAt, bytes, index, count);
+        }
 
         internal long FindFreeSector() => (long)_bitMap.IndexOf(false) * SectorSize;
 
@@ -286,6 +293,11 @@ namespace FileSystemNS
                 ? throw new ArgumentException("Sector is already in use.", nameof(address))
                 : true;
             _stream.WriteByteAt(BITMAP_INDEX + index, _bitMap.GetByte(index));
+        }
+
+        internal void FreeSectors(Object obj)
+        {
+
         }
 
         internal void FreeSectorAt(long address)

@@ -19,7 +19,7 @@ namespace CustomCollections
         }
 
         public ReadOnlyList_(IList<T> list) =>
-            _list = list ?? throw new ArgumentNullException(nameof(list), Exceptions.CANNOT_BE_NULL);
+            _list = list ?? throw new ArgumentNullException(nameof(list));
 
         public int IndexOf(T item) => _list.IndexOf(item);
         public bool Contains(T item) => _list.Contains(item);

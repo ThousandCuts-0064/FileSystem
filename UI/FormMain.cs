@@ -27,7 +27,7 @@ namespace UI
             InitializeComponent();
             _fileSystem = fileSystem;
             Get = this;
-            _currDir = _fileSystem.RootDir;
+            _currDir = _fileSystem.RootDirectory;
         }
 
         private void FormMain_Load(object sender, EventArgs e)
@@ -104,7 +104,7 @@ namespace UI
                             break;
 
                         case RMDIR:
-                            _currDir.CreateSubdirectory(commands[1]);
+                            _currDir.TryRemoveSubdirectory(commands[1]);
                             break;
 
                         default:

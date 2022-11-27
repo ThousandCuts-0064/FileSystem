@@ -17,12 +17,12 @@ namespace CustomCollections
         {
             get => (uint)index < (uint)Count
                 ? (_bytes[index / BYTE_BITS] & 1 << BYTE_LAST_BIT - index) == 1
-                : throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
+                : throw new IndexOutOfBoundsException(nameof(index));
 
             set
             {
                 if ((uint)index >= (uint)Count)
-                    throw new IndexOutOfRangeException(Exceptions.INDEX_OUTSIDE);
+                    throw new IndexOutOfBoundsException(nameof(index));
 
                 int val = sbyte.MinValue >> index % BYTE_BITS;
                 _bytes[index / BYTE_BITS] = (byte)(value ? val : ~val);
@@ -113,9 +113,9 @@ namespace CustomCollections
 
         public void CopyTo(bool[] array, int arrayIndex)
         {
-            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
-            if (array.Length < Count) throw new ArgumentOutOfRangeException(nameof(array), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
-            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new ArgumentOutOfRangeException(nameof(arrayIndex), Exceptions.INDEX_OUTSIDE);
+            if (array is null) throw new ArgumentNullException(nameof(array));
+            if (array.Length < Count) throw new ArrayTooShortExcpetion(nameof(array));
+            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new IndexOutOfBoundsException(nameof(arrayIndex));
 
             while (arrayIndex < Count)
                 array[arrayIndex] = this[arrayIndex++];

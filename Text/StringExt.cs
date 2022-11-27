@@ -9,7 +9,7 @@ namespace Text
     {
         public static string ToUpperASCII_(this string str)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+            if (str is null) throw new ArgumentNullException(nameof(str));
 
             char[] chars = new char[str.Length];
             for (int i = 0; i < str.Length; i++)
@@ -19,7 +19,7 @@ namespace Text
 
         public static string ToLowerASCII_(this string str)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+            if (str is null) throw new ArgumentNullException(nameof(str));
 
             char[] chars = new char[str.Length];
             for (int i = 0; i < str.Length; i++)
@@ -29,9 +29,9 @@ namespace Text
 
         public static string TrimStart_(this string str, char trim)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+            if (str is null) throw new ArgumentNullException(nameof(str));
 
-            if (str is "") return str;
+            if (str == "") return str;
 
             int i = 0;
             while (str[i] == trim && i < str.Length) i++;
@@ -40,9 +40,9 @@ namespace Text
 
         public static string TrimEnd_(this string str, char trim)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
+            if (str is null) throw new ArgumentNullException(nameof(str));
 
-            if (str is "") return str;
+            if (str == "") return str;
 
             int i = str.Length - 1;
             while (str[i] == trim && i >= 0) i--;
@@ -52,8 +52,8 @@ namespace Text
         public static string PadLeft_(this string str, int widthTotal) => str.PadLeft_(widthTotal, ' ');
         public static string PadLeft_(this string str, int widthTotal, char pad)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
-            if (widthTotal < 0) throw new ArgumentOutOfRangeException(nameof(widthTotal), Exceptions.CANNOT_BE_NEGATIVE);
+            if (str is null) throw new ArgumentNullException(nameof(str));
+            if (widthTotal <= 0) throw new NumberNotPositiveException(nameof(widthTotal));
 
             char[] chars = new char[widthTotal];
             int totalPads = widthTotal - str.Length;
@@ -66,8 +66,8 @@ namespace Text
         public static string PadRight_(this string str, int widthTotal) => str.PadRight_(widthTotal, ' ');
         public static string PadRight_(this string str, int widthTotal, char pad)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
-            if (widthTotal < 0) throw new ArgumentOutOfRangeException(nameof(widthTotal), Exceptions.CANNOT_BE_NEGATIVE);
+            if (str is null) throw new ArgumentNullException(nameof(str));
+            if (widthTotal <= 0) throw new NumberNotPositiveException(nameof(widthTotal));
 
             if (widthTotal <= str.Length) return str;
 
@@ -80,12 +80,11 @@ namespace Text
 
         public static string Substring_(this string str, int index, int length)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
-            if ((uint)index > (uint)str.Length) throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
-            if (length < 0) throw new ArgumentOutOfRangeException(nameof(length), Exceptions.CANNOT_BE_NEGATIVE);
-            if (index + length > str.Length) throw new ArgumentOutOfRangeException(nameof(length), Exceptions.INDEX_OUTSIDE);
+            if (str is null) throw new ArgumentNullException(nameof(str));
+            if ((uint)index > (uint)str.Length) throw new IndexOutOfBoundsException(nameof(index));
+            if (length <= 0) throw new ArgumentOutOfRangeException(nameof(length));
+            if (index + length > str.Length) throw new IndexOutOfBoundsException(nameof(index));
 
-            if (length == 0) return "";
             if (index == 0 && length == str.Length) return str;
 
             char[] chars = new char[length];
@@ -96,9 +95,9 @@ namespace Text
 
         public static string SubstringAt_(this string str, int index1, int index2)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
-            if ((uint)index1 > (uint)str.Length) throw new ArgumentOutOfRangeException(nameof(index1), Exceptions.INDEX_OUTSIDE);
-            if ((uint)index2 > (uint)str.Length) throw new ArgumentOutOfRangeException(nameof(index2), Exceptions.INDEX_OUTSIDE);
+            if (str is null) throw new ArgumentNullException(nameof(str));
+            if ((uint)index1 > (uint)str.Length) throw new IndexOutOfBoundsException(nameof(index1));
+            if ((uint)index2 > (uint)str.Length) throw new IndexOutOfBoundsException(nameof(index2));
 
             if (index2 < index1) (index1, index2) = (index2, index1); //Swap
 
@@ -116,11 +115,11 @@ namespace Text
         public static string[] Split_(this string str, char[] separators) => str.Split_(separators, str.Length - 1);
         public static string[] Split_(this string str, char[] separators, int maxResults)
         {
-            if (str is null) throw new ArgumentNullException(nameof(str), Exceptions.CANNOT_BE_NULL);
-            if (maxResults < 0) throw new ArgumentOutOfRangeException(nameof(maxResults), Exceptions.CANNOT_BE_NEGATIVE);
+            if (str is null) throw new ArgumentNullException(nameof(str));
+            if (maxResults <= 0) throw new NumberNotPositiveException(nameof(maxResults));
 
             if (str == "") return Array.Empty<string>();
-            if (maxResults == 0) return new string[] { str };
+            if (maxResults == 1) return new string[] { str };
             if (str.Length == 1) return separators.Contains_(str[0]) ? Array.Empty<string>() : new string[] { str };
 
             if (maxResults > str.Length - 1) maxResults = str.Length - 1;

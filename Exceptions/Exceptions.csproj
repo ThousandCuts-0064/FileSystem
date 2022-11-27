@@ -41,7 +41,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Exceptions.cs" />
+    <Compile Include="CollectionEmptyException.cs" />
+    <Compile Include="ArrayTooShortExcpetion.cs" />
+    <Compile Include="IndexOutOfBoundsException.cs" />
+    <Compile Include="NodeDifferentCollectionException.cs" />
+    <Compile Include="NumberNegativeException.cs" />
+    <Compile Include="NumberNotPositiveException.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

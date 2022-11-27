@@ -12,7 +12,7 @@ namespace CustomCollections
         bool ICollection<T>.IsReadOnly => true;
 
         public ReadOnlyCollection_(ICollection<T> collection) => 
-            _collection = collection ?? throw new ArgumentNullException(nameof(collection), Exceptions.CANNOT_BE_NULL);
+            _collection = collection ?? throw new ArgumentNullException(nameof(collection));
 
         public bool Contains(T item) => _collection.Contains(item);
         public void CopyTo(T[] array, int arrayIndex) => _collection.CopyTo(array, arrayIndex);

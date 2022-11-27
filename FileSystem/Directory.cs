@@ -12,93 +12,92 @@ namespace FileSystemNS
 {
     public sealed class Directory : Object
     {
-        private readonly ICollection<Directory> _subDirectories;
-        public IReadOnlyCollection<Directory> SubDirectories { get; }
+        private readonly IList<Directory> _subDirectories;
+        public IReadOnlyList<Directory> SubDirectories { get; }
 
-        private Directory(FileSystem fileSystem, long address, ObjectFlags objectFlags, string name, long byteCount) 
-            : base(fileSystem, address, objectFlags, name, byteCount) 
+        private Directory(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
+            : base(fileSystem, parent, address, objectFlags, name, byteCount)
         {
-            _subDirectories = new LinkedList_<Directory>();
+            _subDirectories = new UnorderedList_<Directory>();
             SubDirectories = _subDirectories.ToReadOnly();
-        } // Only for root directory
+        }
 
-        private Directory(FileSystem fileSystem, Directory root, long address, string name, ObjectFlags objectFlags) 
-            : base(fileSystem, root, address, name, objectFlags) { }
-
-        internal static Directory CreateRoot(FileSystem fileSystem)
+        internal static Directory CreateRoot(FileSystem fileSystem, string name)
         {
-            string name = nameof(Root);
-            ObjectFlags objectFlags = ObjectFlags.System | ObjectFlags.Folder;
+            Directory directory = new Directory(
+                fileSystem ?? throw new ArgumentNullException(nameof(fileSystem)),
+                null,
+                fileSystem.RootAddress,
+                ObjectFlags.SysFolder,
+                ValidatedName(name),
+                0);
 
-            Directory directory = new Directory(fileSystem, fileSystem.RootAddress, objectFlags, name, 0);
-
-            fileSystem.AllocateSectorAt(fileSystem.RootAddress);
             fileSystem.SerializeProperties(directory);
+            fileSystem.AllocateSectorAt(fileSystem.RootAddress);
 
             return directory;
         }
 
         internal static Directory LoadRoot(FileSystem fileSystem)
         {
-            string name = nameof(Root);
-            ObjectFlags objectFlags = ObjectFlags.System | ObjectFlags.Folder;
+            Directory directory = new Directory(
+                fileSystem ?? throw new ArgumentNullException(nameof(fileSystem)),
+                null,
+                fileSystem.RootAddress,
+                ObjectFlags.SysFolder,
+                fileSystem.GetNameAt(fileSystem.RootAddress),
+                fileSystem.GetByteCountAt(fileSystem.RootAddress));
 
-            long byteCount = fileSystem.GetByteCountAt(fileSystem.RootAddress);
-            Directory directory = new Directory(fileSystem, fileSystem.RootAddress, objectFlags, name, byteCount);
             fileSystem.DeserializeAllInfoBytes(directory);
 
             return directory;
         }
 
-        internal override void DeserializeBytes(byte[] bytes)
-        {
-            
-        }
-
-        internal override byte[] SerializeBytes()
-        {
-            byte[] bytes = new byte[_subDirectories.Count * ADDRESS_BYTES];
-            int i = 0;
-            foreach (var dir in _subDirectories)
-            {
-                for (int y = 0; y < ADDRESS_BYTES; y++)
-                    bytes[i * ADDRESS_BYTES + y] = dir.Address.GetByte(y);
-                i++;
-            }
-            return bytes;
-        }
-
         public Directory CreateSubdirectory(string name)
         {
             long address = FileSystem.FindFreeSector();
-            var directory = new Directory(FileSystem, this, address, name, ObjectFlags.Folder);
+            var directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, ValidatedName(name), 0);
             _subDirectories.Add(directory);
 
-            FileSystem.AllocateSectorAt(address);
             FileSystem.SerializeProperties(directory);
+            FileSystem.AllocateSectorAt(address);
 
             return directory;
         }
 
-        public void RemoveSubdirectory(string nane)
+        public bool TryRemoveSubdirectory(string name)
         {
-            
+            int index = _subDirectories.IndexOf_(dir => dir.Name == name);
+            if (index == -1) return false;
+
+            FileSystem.FreeSectors(_subDirectories[index]);
+            FileSystem.OverrideInfoBytes(this, index * ADDRESS_BYTES, null);
+            _subDirectories.RemoveAt(index);
+            return true;
         }
 
-        public SetRootResult TrySetRoot(Directory directory)
+        internal override void DeserializeBytes(byte[] bytes)
         {
-            return SetRootResult.Success;
+            int addressCount = bytes.Length / ADDRESS_BYTES;
+            for (int i = 0; i < addressCount; i++)
+            {
+                long address = bytes.GetLong(i * ADDRESS_BYTES);
+                _subDirectories.Add(new Directory(
+                    FileSystem,
+                    this,
+                    address,
+                    FileSystem.GetObjectFlagsAt(address),
+                    FileSystem.GetNameAt(address),
+                    FileSystem.GetByteCountAt(address)));
+            }
         }
 
-        public byte[] ToBytes()
+        private protected override byte[] OnSerializeBytes()
         {
-            return null;
-        }
-
-        public enum SetRootResult : byte
-        {
-            None,
-            Success,
+            byte[] bytes = new byte[_subDirectories.Count * ADDRESS_BYTES];
+            for (int i = 0; i < _subDirectories.Count; i++)
+                _subDirectories[i].Address.GetBytes(bytes, i * ADDRESS_BYTES);
+            return bytes;
         }
     }
 }

@@ -19,7 +19,7 @@ namespace CustomCollections
 
         public LinkedList_(IEnumerable<T> source)
         {
-            if (source is null) throw new ArgumentNullException(nameof(source), Exceptions.CANNOT_BE_NULL);
+            if (source is null) throw new ArgumentNullException(nameof(source));
 
             foreach (var item in source)
                 AddLast(item);
@@ -27,28 +27,28 @@ namespace CustomCollections
 
         public LinkedListNode_<T> AddLast(T item) => AddLastUnchecked(NewNode(item));
         public LinkedListNode_<T> AddLast(LinkedListNode_<T> node) => node is null
-                ? throw new ArgumentNullException(nameof(node), Exceptions.CANNOT_BE_NULL)
+                ? throw new ArgumentNullException(nameof(node))
                 : node.List is null
                     ? AddLastUnchecked(node)
                     : throw new ArgumentException($"{node} was already part of {nameof(LinkedList_<T>)}", nameof(node));
 
         public LinkedListNode_<T> AddFirst(T item) => AddFirstUnchecked(NewNode(item));
         public LinkedListNode_<T> AddFirst(LinkedListNode_<T> node) => node is null
-                ? throw new ArgumentNullException(nameof(node), Exceptions.CANNOT_BE_NULL)
+                ? throw new ArgumentNullException(nameof(node))
                 : node.List is null
                     ? AddFirstUnchecked(node)
                     : throw new ArgumentException($"{node} was already part of {nameof(LinkedList_<T>)}", nameof(node));
 
         public LinkedListNode_<T> AddAfter(LinkedListNode_<T> node, T item) => AddAfterNewUnchecked(node, NewNode(item));
         public LinkedListNode_<T> AddAfter(LinkedListNode_<T> node, LinkedListNode_<T> newNode) => newNode is null
-            ? throw new ArgumentNullException(nameof(newNode), Exceptions.CANNOT_BE_NULL)
+            ? throw new ArgumentNullException(nameof(newNode))
             : newNode.List is null
                 ? AddAfterNewUnchecked(node, newNode)
                 : throw new ArgumentException($"{newNode} was already part of {nameof(LinkedList_<T>)}", nameof(newNode));
 
         public LinkedListNode_<T> AddBefore(LinkedListNode_<T> node, T item) => AddBeforeNewUncheked(node, NewNode(item));
         public LinkedListNode_<T> AddBefore(LinkedListNode_<T> node, LinkedListNode_<T> newNode) => newNode is null
-            ? throw new ArgumentNullException(nameof(newNode), Exceptions.CANNOT_BE_NULL)
+            ? throw new ArgumentNullException(nameof(newNode))
             : newNode.List is null
                 ? AddBeforeNewUncheked(node, newNode)
                 : throw new ArgumentException($"{newNode} was already part of {nameof(LinkedList_<T>)}", nameof(newNode));
@@ -141,9 +141,9 @@ namespace CustomCollections
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            if (array is null) throw new ArgumentNullException(nameof(array), Exceptions.CANNOT_BE_NULL);
-            if (array.Length < Count) throw new ArgumentOutOfRangeException(nameof(array), Exceptions.DEST_ARR_NOT_LONG_ENOUGH);
-            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new ArgumentOutOfRangeException(nameof(arrayIndex), Exceptions.INDEX_OUTSIDE);
+            if (array is null) throw new ArgumentNullException(nameof(array));
+            if (array.Length < Count) throw new ArrayTooShortExcpetion(nameof(array));
+            if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new IndexOutOfBoundsException(nameof(arrayIndex));
 
             foreach (var item in this)
                 array[arrayIndex++] = item;
@@ -164,8 +164,8 @@ namespace CustomCollections
 
         public void Remove(LinkedListNode_<T> node)
         {
-            if (node is null) throw new ArgumentNullException(nameof(node), Exceptions.CANNOT_BE_NULL);
-            if (node.List != this) throw new ArgumentException(Exceptions.NODE_DIFF_COLLECTION, nameof(node));
+            if (node is null) throw new ArgumentNullException(nameof(node));
+            if (node.List != this) throw new NodeDifferentCollectionException(nameof(node));
 
             if (Count == 1)
             {
@@ -257,8 +257,8 @@ namespace CustomCollections
 
         private LinkedListNode_<T> AddAfterNewUnchecked(LinkedListNode_<T> node, LinkedListNode_<T> newNode)
         {
-            if (node is null) throw new ArgumentNullException(nameof(node), Exceptions.CANNOT_BE_NULL);
-            if (node.List != this) throw new ArgumentException(Exceptions.NODE_DIFF_COLLECTION, nameof(node));
+            if (node is null) throw new ArgumentNullException(nameof(node));
+            if (node.List != this) throw new NodeDifferentCollectionException(nameof(node));
 
             node.ChainNext(newNode);
             Count++;
@@ -267,8 +267,8 @@ namespace CustomCollections
 
         private LinkedListNode_<T> AddBeforeNewUncheked(LinkedListNode_<T> node, LinkedListNode_<T> newNode)
         {
-            if (node is null) throw new ArgumentNullException(nameof(node), Exceptions.CANNOT_BE_NULL);
-            if (node.List != this) throw new ArgumentException(Exceptions.NODE_DIFF_COLLECTION, nameof(node));
+            if (node is null) throw new ArgumentNullException(nameof(node));
+            if (node.List != this) throw new NodeDifferentCollectionException(nameof(node));
 
             node.ChainPrevious(newNode);
             Count++;

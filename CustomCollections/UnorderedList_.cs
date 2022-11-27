@@ -6,7 +6,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    public class List_<T> : IList<T>, IReadOnlyList<T>
+    public class UnorderedList_<T> : IList<T>, IReadOnlyList<T>
     {
         private T[] _array;
 
@@ -42,16 +42,16 @@ namespace CustomCollections
             }
         }
 
-        public List_() => _array = new T[DEFAULT_SIZE];
+        public UnorderedList_() => _array = new T[DEFAULT_SIZE];
 
-        public List_(int capacity)
+        public UnorderedList_(int capacity)
         {
             if (capacity < 0) throw new NumberNegativeException(nameof(capacity));
 
             _array = capacity == 0 ? Array.Empty<T>() : new T[capacity];
         }
 
-        public List_(IEnumerable<T> source)
+        public UnorderedList_(IEnumerable<T> source)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
 
@@ -68,16 +68,6 @@ namespace CustomCollections
             _array[Count++] = item;
         }
 
-        public void Insert(int index, T item)
-        {
-            if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
-
-            if (Count == _array.Length) ExpandTo(_array.Length * 2);
-            if (index < Count) Array.Copy(_array, index, _array, index + 1, Count - index);
-            _array[index] = item;
-            Count++;
-        }
-
         public void AddRange(IEnumerable<T> source)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
@@ -92,26 +82,6 @@ namespace CustomCollections
             else
                 foreach (var item in source)
                     Add(item);
-        }
-
-        public void InsertRange(int index, ICollection<T> collection)
-        {
-            if (collection is null) throw new ArgumentNullException(nameof(collection));
-            if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
-
-            int countTotal = Count + collection.Count;
-            if (countTotal < Capacity) ExpandTo(countTotal);
-            //Remember elements that will be overwritten
-            if (index < Count) Array.Copy(_array, index, _array, index + collection.Count, Count - index);
-            if (collection == this)
-            {
-                // Copy first part of _array to insert location
-                Array.Copy(_array, 0, _array, index, index);
-                // Copy last part of _array back to inserted location
-                Array.Copy(_array, index + collection.Count, _array, index * 2, Count - index);
-            }
-            else collection.CopyTo(_array, index);
-            Count = countTotal;
         }
 
         public bool Contains(T item)
@@ -157,7 +127,7 @@ namespace CustomCollections
         {
             int index = IndexOf(item);
             if (index < 0) return false;
-            
+
             RemoveAt(index);
             return true;
         }
@@ -167,8 +137,8 @@ namespace CustomCollections
             if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
 
             Count--;
-            if (index < Count) Array.Copy(_array, index + 1, _array, index, Count - index);
-            _array[Count] = default;
+            _array[index] = _array[Count]; // Fill removed element with the last one
+            _array[Count] = default; // Set the previously last element to default
         }
 
         public void Clear()
@@ -189,6 +159,17 @@ namespace CustomCollections
             //Check for overflow
             if ((uint)newCapacity > ARRAY_MAX_LENGTH) newCapacity = ARRAY_MAX_LENGTH;
             Capacity = newCapacity;
+        }
+
+
+        void IList<T>.Insert(int index, T item)
+        {
+            if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
+
+            if (Count == _array.Length) ExpandTo(_array.Length * 2);
+            if (index < Count) Array.Copy(_array, index, _array, index + 1, Count - index);
+            _array[index] = item;
+            Count++;
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

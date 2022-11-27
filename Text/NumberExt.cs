@@ -50,7 +50,7 @@ namespace Text
         public static char ToHexChar_(this byte b, bool left) => left ? _hex[b / 16] : _hex[b % 16];
         public static char ToBinChar_(this byte b, int index) => index < BYTE_BITS
             ? ToBinChar((b & 1 << BYTE_LAST_BIT - index) != 0)
-            : throw new ArgumentOutOfRangeException(nameof(index), Exceptions.INDEX_OUTSIDE);
+            : throw new IndexOutOfBoundsException(nameof(index));
 
         private static char ToBinChar(bool b) => b ? '1' : '0';
     }

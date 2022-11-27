@@ -14,7 +14,7 @@ namespace FileSystemNS
         private const string HELP = nameof(HELP);
         private const string OPEN = nameof(OPEN);
         private const int PAD_COUNT = 10;
-        public static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
+        private static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
 
         public static FileSystem Open()
         {
@@ -47,9 +47,16 @@ namespace FileSystemNS
                         string fileName = fileInfo[0].TrimEnd_(' ');
                         for (int i = 1; i < fileInfo.Length; i++)
                             fileInfo[i] = fileInfo[i].ToUpperASCII_();
-                        if (fileName.ContainsAny_(FORBIDDEN_CHARS))
+
+                        if (fileName.Length > NAME_MAX_LENGTH)
                         {
-                            Console.WriteLine("A file name cannot contain any of the following symbolls: " + FORBIDDEN_CHARS);
+                            Console.WriteLine($"File name exceeds the {NAME_MAX_LENGTH} char limit.");
+                            break;
+                        }
+
+                        if (fileName.ContainsAny_(NAME_FORBIDDEN_CHARS))
+                        {
+                            Console.WriteLine("A file name cannot contain any of the following symbolls: " + NAME_FORBIDDEN_CHARS);
                             break;
                         }
 
@@ -57,7 +64,7 @@ namespace FileSystemNS
 
                         if (error is null)
                         {
-                            fileSystem = FileSystem.Create(File.Create(_defaultDirectory + fileName), totalSize, sectorSize);
+                            fileSystem = FileSystem.Create(File.Create(_defaultDirectory + fileName), fileName, totalSize, sectorSize);
                             break;
                         }
 

@@ -4,7 +4,7 @@ namespace FileSystemNS
 {
     internal static class Constants
     {
-        internal const string FORBIDDEN_CHARS = @"\/";
+        internal const string NAME_FORBIDDEN_CHARS = @"\/";
         internal const int ADDRESS_BYTES = LONG_BYTES;
 
         internal const int TOTAL_SIZE_INDEX = 1;

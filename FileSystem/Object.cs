@@ -1,7 +1,6 @@
 ﻿using System;
-using System.IO;
-using System.Text;
 using CustomCollections;
+using CustomQuery;
 using ExceptionsNS;
 using static Core.Constants;
 using static FileSystemNS.Constants;
@@ -18,42 +17,58 @@ namespace FileSystemNS
         internal long ByteCount { get; private set; }
         internal ObjectFlags ObjectFlags { get; private set; }
 
-        public Directory Root { get; private set; }
+        public Directory Parent { get; private set; }
         public string Name { get; private set; }
         public string FullName => _fullName ?? GetFullName();
 
-        private protected Object(FileSystem fileSystem, long address, ObjectFlags objectFlags, string name, long byteCount) // Only for root directory
+        private protected Object(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
         {
-            FileSystem = fileSystem;
-            Address = address;
+            FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+            if (address <= 0) throw new ArgumentOutOfRangeException(nameof(address), "Number must be positive");
+            Parent = parent;
+            Address = Parent is null
+                ? address == fileSystem.RootAddress
+                    ? address
+                    : throw new ArgumentException($"{nameof(parent)} = null is only possible for {fileSystem.RootAddress}", nameof(address))
+                : address != fileSystem.RootAddress
+                    ? address
+                    : throw new ArgumentException($"{nameof(address)} = {nameof(fileSystem.RootAddress)} is only possible for {nameof(fileSystem.RootDirectory)} ({nameof(parent)} = null)", nameof(address));
             ObjectFlags = objectFlags;
+            Name = ValidatedName(name);
             ByteCount = byteCount;
-            Name = name;
         }
 
-        private protected Object(FileSystem fileSystem, Directory root, long address, string name, ObjectFlags objectFlags)
-        {
-            FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem), Exceptions.CANNOT_BE_NULL);
-            Root = root ?? throw new ArgumentNullException(nameof(root), Exceptions.CANNOT_BE_NULL);
-            Address = address >= 0 ? address : throw new ArgumentOutOfRangeException(nameof(address), Exceptions.CANNOT_BE_NEGATIVE);
-            Name = name ?? throw new ArgumentNullException(nameof(name), Exceptions.CANNOT_BE_NULL);
-            Name = name.Length <= NAME_MAX_LENGTH ? name : throw new ArgumentOutOfRangeException($"{nameof(name)}.{nameof(name.Length)}", Exceptions.ARR_MAX_CAPACITY_EXCEEDED);
-            ObjectFlags = objectFlags;
-        }
+        private protected static string ValidatedName(string name) => name is null
+                ? throw new ArgumentNullException(nameof(name))
+                : name == ""
+                    ? throw new CollectionEmptyException(nameof(name))
+                    : name.Length > NAME_MAX_LENGTH
+                        ? throw new ArgumentOutOfRangeException(nameof(name), $"{nameof(name)} cannot exceed {NAME_MAX_LENGTH}")
+                        : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
+                            ? throw new ArgumentException($"{nameof(name)} contained a forbidden symbol", nameof(name))
+                            : name;
 
         internal abstract void DeserializeBytes(byte[] bytes);
-        internal abstract byte[] SerializeBytes();
+
+        internal byte[] SerializeBytes()
+        {
+            byte[] bytes = OnSerializeBytes();
+            ByteCount = bytes.Length;
+            return bytes;
+        }
+
+        private protected abstract byte[] OnSerializeBytes();
 
         private string GetFullName()
         {
             StringBuilder_ sb = new StringBuilder_();
             Object curr = this;
             sb.Prepend(curr.Name);
-            curr = curr.Root;
+            curr = curr.Parent;
             while (!(curr is null))
             {
                 sb.Prepend("\\").Prepend(curr.Name);
-                curr = curr.Root;
+                curr = curr.Parent;
             }
             _fullName = sb.ToString();
             return _fullName;
