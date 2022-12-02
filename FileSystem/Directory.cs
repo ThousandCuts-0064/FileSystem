@@ -59,6 +59,9 @@ namespace FileSystemNS
             var directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, ValidatedName(name), 0);
             _subDirectories.Add(directory);
 
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            address.GetBytes(bytes, 0);
+            FileSystem.AppendInfoBytes(this, bytes);
             FileSystem.SerializeProperties(directory);
             FileSystem.AllocateSectorAt(address);
 
@@ -71,8 +74,9 @@ namespace FileSystemNS
             if (index == -1) return false;
 
             FileSystem.FreeSectors(_subDirectories[index]);
-            FileSystem.OverrideInfoBytes(this, index * ADDRESS_BYTES, null);
+            FileSystem.RemoveObjectFromDirectory(this, index);
             _subDirectories.RemoveAt(index);
+            TrimBytes(ADDRESS_BYTES);
             return true;
         }
 

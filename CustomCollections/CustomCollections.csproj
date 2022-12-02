@@ -42,21 +42,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BitArray_.cs" />
+    <Compile Include="Collections\BitArray_.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Extensions.cs" />
-    <Compile Include="Wrapper\LinkedListNode_.cs" />
-    <Compile Include="LinkedList_.cs" />
-    <Compile Include="List_.cs" />
+    <Compile Include="Wrappers\LinkedListNode_.cs" />
+    <Compile Include="Collections\LinkedList_.cs" />
+    <Compile Include="Collections\List_.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ReadOnly\ReadOnlyCollection_.cs" />
-    <Compile Include="ReadOnly\ReadOnlyList_.cs" />
-    <Compile Include="StringBuilder_.cs" />
-    <Compile Include="UnorderedList_.cs" />
-    <Compile Include="ReadOnly\IReadOnlyWrapper.cs" />
-    <Compile Include="Wrapper\IWrapper.cs" />
-    <Compile Include="ReadOnly\ReadOnlyWrapper.cs" />
-    <Compile Include="Wrapper\Wrapper.cs" />
+    <Compile Include="ReadOnlyCollections\ReadOnlyCollection_.cs" />
+    <Compile Include="ReadOnlyCollections\ReadOnlyList_.cs" />
+    <Compile Include="Collections\StringBuilder_.cs" />
+    <Compile Include="Collections\UnorderedList_.cs" />
+    <Compile Include="Wrappers\IReadOnlyWrapper.cs" />
+    <Compile Include="Wrappers\IWrapper.cs" />
+    <Compile Include="Wrappers\ReadOnlyWrapper.cs" />
+    <Compile Include="Wrappers\Wrapper.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj">

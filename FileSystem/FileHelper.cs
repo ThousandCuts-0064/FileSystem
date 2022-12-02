@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
-using System.Windows.Forms;
 using Text;
 using CustomQuery;
-using static Core.Constants;
 using static FileSystemNS.Constants;
 
 namespace FileSystemNS

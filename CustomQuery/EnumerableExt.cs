@@ -1,12 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
 using CustomCollections;
+using ExceptionsNS;
 using static CustomCollections.Constants;
 
 namespace CustomQuery
 {
     public static class EnumerableExt
     {
+        public static T Last_<T>(this IEnumerable<T> source)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+
+            if (source is IList<T> collection)
+                return collection[collection.Count - 1];
+
+            var enumerator = source.GetEnumerator();
+            if (!enumerator.MoveNext()) throw new CollectionEmptyException(nameof(source));
+            T last = enumerator.Current;
+
+            while (enumerator.MoveNext())
+                last = enumerator.Current;
+
+            return last;
+        }    
+
         public static T[] ToArray_<T>(this IEnumerable<T> source) =>
             source is null
             ? throw new ArgumentNullException(nameof(source))

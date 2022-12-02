@@ -87,6 +87,10 @@
       <Project>{DE331960-08E1-4D31-9660-85D4DA3CAAF1}</Project>
       <Name>CustomCollections</Name>
     </ProjectReference>
+    <ProjectReference Include="..\CustomQuery\CustomQuery.csproj">
+      <Project>{5c9f0b95-31ca-46b6-af6f-afae3ee1a1d8}</Project>
+      <Name>CustomQuery</Name>
+    </ProjectReference>
     <ProjectReference Include="..\FileSystem\FileSystem.csproj">
       <Project>{BF20489F-B080-4906-958F-BC8ABA4A728A}</Project>
       <Name>FileSystem</Name>

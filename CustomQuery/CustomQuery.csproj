@@ -49,6 +49,10 @@
       <Project>{de331960-08e1-4d31-9660-85d4da3caaf1}</Project>
       <Name>CustomCollections</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Exceptions\Exceptions.csproj">
+      <Project>{30B06B97-68EF-4B65-815E-FC5713D91856}</Project>
+      <Name>Exceptions</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

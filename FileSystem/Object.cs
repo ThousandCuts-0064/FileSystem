@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using CustomCollections;
 using CustomQuery;
 using ExceptionsNS;
@@ -11,9 +12,8 @@ namespace FileSystemNS
     {
         private string _fullName;
 
-        private protected FileSystem FileSystem { get; }
-
-        internal long Address { get; }
+        internal FileSystem FileSystem { get; }
+        internal long Address { get; private set; }
         internal long ByteCount { get; private set; }
         internal ObjectFlags ObjectFlags { get; private set; }
 
@@ -38,6 +38,15 @@ namespace FileSystemNS
             ByteCount = byteCount;
         }
 
+        internal abstract void DeserializeBytes(byte[] bytes);
+
+        internal byte[] SerializeBytes()
+        {
+            byte[] bytes = OnSerializeBytes();
+            ByteCount = bytes.Length;
+            return bytes;
+        }
+
         private protected static string ValidatedName(string name) => name is null
                 ? throw new ArgumentNullException(nameof(name))
                 : name == ""
@@ -48,16 +57,13 @@ namespace FileSystemNS
                             ? throw new ArgumentException($"{nameof(name)} contained a forbidden symbol", nameof(name))
                             : name;
 
-        internal abstract void DeserializeBytes(byte[] bytes);
-
-        internal byte[] SerializeBytes()
-        {
-            byte[] bytes = OnSerializeBytes();
-            ByteCount = bytes.Length;
-            return bytes;
-        }
-
         private protected abstract byte[] OnSerializeBytes();
+
+        private protected void TrimBytes(int count)
+        {
+            ByteCount -= count;
+            FileSystem.SerializeByteCount(this);
+        }
 
         private string GetFullName()
         {

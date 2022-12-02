@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using Core;
 using ExceptionsNS;
 using static Core.Constants;
 
@@ -38,7 +39,7 @@ namespace CustomCollections
 
         public BitArray_(int length)
         {
-            _bytes = new byte[length / BYTE_BITS + length % BYTE_BITS > 0 ? 1 : 0];
+            _bytes = new byte[Math_.DivCeiling(length, BYTE_BITS)];
             Count = length;
         }
 

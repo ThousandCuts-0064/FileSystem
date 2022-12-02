@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using CustomQuery;
 using FileSystemNS;
 using Text;
 
@@ -17,6 +18,8 @@ namespace UI
 
         private const string MKDIR = nameof(MKDIR);
         private const string RMDIR = nameof(RMDIR);
+        private const string LS = nameof(LS);
+        private const string CD = nameof(CD);
 
         private readonly FileSystem _fileSystem;
         private Directory _currDir;
@@ -105,6 +108,30 @@ namespace UI
 
                         case RMDIR:
                             _currDir.TryRemoveSubdirectory(commands[1]);
+                            break;
+
+                        case LS:
+                            Console.WriteLine(_currDir.Name);
+                            for (int i = 0; i < _currDir.SubDirectories.Count - 1; i++)
+                                Console.WriteLine('├' + _currDir.SubDirectories[i].Name);
+                            Console.WriteLine('└' + _currDir.SubDirectories.Last_().Name);
+                            break;
+
+                        case CD:
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify a name.");
+                                break;
+                            }
+
+                            int newDirIndex = _currDir.SubDirectories.IndexOf_(dir => dir.Name == commands[1]);
+                            if (newDirIndex == 1)
+                            {
+                                Console.WriteLine($"\"{commands[1]}\" was not found.");
+                                break;
+                            }
+
+                            _currDir = _currDir.SubDirectories[newDirIndex];
                             break;
 
                         default:

@@ -1,9 +1,13 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using CustomCollections;
+using CustomQuery;
 using ExceptionsNS;
 using Text;
+using Core;
 using static Core.Constants;
 using static FileSystemNS.Constants;
 
@@ -16,6 +20,9 @@ namespace FileSystemNS
 
         internal long SectorCount { get; }
         internal ushort SectorSize { get; }
+        internal ushort NextSectorAddressIndex { get; }
+        internal ushort SectorInfoSize { get; }
+        internal ushort FirstSectorInfoSize { get; }
         internal long RootAddress { get; }
         internal long AddressNextSectorBytesIndex { get; }
         internal long BitmapBytes => _bitMap.ByteCount;
@@ -29,17 +36,20 @@ namespace FileSystemNS
             _stream = fileStream;
             TotalSize = totalSize;
             SectorSize = sectorSize;
+            NextSectorAddressIndex = (ushort)(SectorInfoSize - ADDRESS_BYTES);
+            SectorInfoSize = (ushort)(SectorSize - ADDRESS_BYTES);
+            FirstSectorInfoSize = (ushort)(SectorInfoSize - 1 - NAME_BYTES - LONG_BYTES);
             SectorCount = sectorCount;
             _bitMap = bitmap;
             int rquiredBytes = BITMAP_INDEX + _bitMap.ByteCount;
-            RootAddress = (rquiredBytes / SectorSize + rquiredBytes % SectorSize > 0 ? 1 : 0) * SectorSize;
+            RootAddress = Math_.DivCeiling(rquiredBytes, SectorSize) * SectorSize;
             AddressNextSectorBytesIndex = SectorCount - ADDRESS_BYTES;
         }
 
         public static FileSystem Create(FileStream fileStream, string name, long totalSize, ushort sectorSize)
         {
             long sectorCount = totalSize / sectorSize;
-            var bitMap = new BitArray_(sectorCount / BYTE_BITS + sectorCount % BYTE_BITS > 0 ? 1 : 0); // BitmapBytes may be too large
+            var bitMap = new BitArray_(Math_.DivCeiling(sectorCount, BYTE_BITS)); // BitmapBytes may be too large
 
             FileSystem fileSystem = new FileSystem(
                 fileStream ?? throw new ArgumentNullException(nameof(fileStream)),
@@ -133,7 +143,7 @@ namespace FileSystemNS
                 _stream.ReadAt(RootDirectory.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
 
-                bytes = new byte[SectorSize - 1 - NAME_BYTES - LONG_BYTES - ADDRESS_BYTES];
+                bytes = new byte[FirstSectorInfoSize];
                 _stream.ReadAt(RootDirectory.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
 
@@ -194,7 +204,7 @@ namespace FileSystemNS
                 _stream.ReadAt(RootDirectory.Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
 
-                bytes = new byte[SectorSize - 1 - NAME_BYTES - LONG_BYTES - ADDRESS_BYTES];
+                bytes = new byte[FirstSectorInfoSize];
                 _stream.ReadAt(RootDirectory.Address + INFO_BYTES_INDEX, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
 
@@ -265,41 +275,103 @@ namespace FileSystemNS
             return bytes;
         }
         internal void GetAllInfoBytesAt(long address, byte[] bytes) => GetAllInfoBytesAt(address, bytes, 0, bytes.Length);
-        internal void GetAllInfoBytesAt(long address, byte[] bytes, int index, int count) => _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, index, count);
+        internal void GetAllInfoBytesAt(long address, byte[] bytes, int index, int count)
+        {
+            int countFirstSector = Math.Min(count, FirstSectorInfoSize);
+            _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, index, countFirstSector);
+            count -= countFirstSector;
+            index += countFirstSector;
+            if (count == 0) return;
+
+            int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
+            byte[] addressBytes = new byte[ADDRESS_BYTES];
+            _stream.ReadAt(address + NextSectorAddressIndex, addressBytes, 0, addressBytes.Length);
+            long lastFullSectorAddress = -1;
+            foreach (var currAddress in EnumerateSectors(addressBytes.GetLong(0), fullSectors))
+            {
+                _stream.ReadAt(currAddress, bytes, index, SectorInfoSize);
+                index += SectorInfoSize;
+                lastFullSectorAddress = currAddress;
+            }
+
+            _stream.ReadAt(lastFullSectorAddress + NextSectorAddressIndex, addressBytes, 0, addressBytes.Length);
+            _stream.ReadAt(addressBytes.GetLong(0) + remaining, bytes, index, remaining);
+        }
 
         internal void SerializeAllInfoBytes(Object obj)
         {
             byte[] bytes = obj.SerializeBytes();
             SetByteCountAt(obj.Address, bytes.Length);
-            SetInfoBytesAt(obj.Address, bytes);
+            SetInfoBytesAt(obj.Address + INFO_BYTES_INDEX, bytes);
+        }
+        internal void AppendInfoBytes(Object obj, byte[] bytes)
+        {
+            SetByteCountAt(obj.Address, obj.ByteCount + bytes.Length);
+            SetInfoBytesAt(EnumerateSectors(obj.Address, FindSectorCountAndByteIndex(obj.ByteCount, out long index)).Last_() + index, bytes);
+        }
+        internal void SetInfoBytesAt(long byteAddress, byte[] bytes) => SetInfoBytesAt(byteAddress, bytes, 0, bytes.Length);
+        internal void SetInfoBytesAt(long byteAddress, byte[] bytes, int index, int count)
+        {
+            int countFirstSector = (int)Math.Min(count, SectorInfoSize - byteAddress % SectorInfoSize);
+            _stream.WriteAt(byteAddress, bytes, index, countFirstSector);
+            count -= countFirstSector;
+            if (count == 0) return;
+
+            index += countFirstSector;
+            int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
+            long freeAddress;
+
+            for (int i = 0; i < fullSectors; i++)
+            {
+                freeAddress = FindFreeSector();
+                _stream.WriteAt(freeAddress, bytes, index, SectorInfoSize);
+                index += SectorInfoSize;
+                AllocateSectorAt(freeAddress);
+            }
+
+            freeAddress = FindFreeSector();
+            _stream.WriteAt(freeAddress, bytes, index, remaining);
+            AllocateSectorAt(freeAddress);
         }
 
-        internal void SetInfoBytesAt(long address, byte[] bytes) => SetInfoBytesAt(address, bytes, 0, bytes.Length);
-        internal void SetInfoBytesAt(long address, byte[] bytes, int index, int count) => _stream.WriteAt(address + INFO_BYTES_INDEX, bytes, index, count);
-
-        internal void OverrideInfoBytes(Object obj, long addressAt, byte[] bytes) => OverrideInfoBytesAt(obj.Address, addressAt, bytes);
-        internal void OverrideInfoBytesAt(long addressObj, long addressAt, byte[] bytes) => OverrideInfoBytesAt(addressObj, addressAt, bytes, 0, bytes.Length);
-        internal void OverrideInfoBytesAt(long addressObj, long addressAt, byte[] bytes, int index, int count)
+        internal void RemoveObjectFromDirectory(Directory dir, int objIndex) => RemoveObjectFromAt(dir.Address, dir.ByteCount, objIndex);
+        internal void RemoveObjectFromAt(long address, long byteCount, int objIndex)
         {
-            _stream.WriteAt(addressObj + INFO_BYTES_INDEX + addressAt, bytes, index, count);
+            int objsInFirstSector = FirstSectorInfoSize / ADDRESS_BYTES;
+            int objIndexInSector = objIndex;
+            int objSectorIndex = objIndex < objsInFirstSector
+                ? 0
+                : 1 + Math.DivRem(objIndex - objsInFirstSector, SectorInfoSize / ADDRESS_BYTES, out objIndexInSector);
+            long objSectorAddress = EnumerateSectors(address, objSectorIndex).Last_();
+
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            EnumerateSectors(address, FindSectorCountAndByteIndex(byteCount, out long lastAddressIndex) - objSectorIndex)
+                .Last_()
+                .GetBytes(bytes, 0);
+
+            //_stream.WriteAt(objSectorAddress + INFO_BYTES_INDEX + objIndexInSector * ADDRESS_BYTES, bytes, 0, bytes.Length);
         }
 
         internal long FindFreeSector() => (long)_bitMap.IndexOf(false) * SectorSize;
-
         internal void AllocateSectorAt(long address)
         {
             int index = (int)((address - RootAddress) / SectorSize);
             _bitMap[index] = _bitMap[index]
                 ? throw new ArgumentException("Sector is already in use.", nameof(address))
                 : true;
-            _stream.WriteByteAt(BITMAP_INDEX + index, _bitMap.GetByte(index));
+            _stream.WriteByteAt(BITMAP_INDEX + index / BYTE_BITS, _bitMap.GetByte(index));
         }
-
         internal void FreeSectors(Object obj)
         {
+            if (obj is Directory dir)
+            {
+                foreach (var subDir in dir.SubDirectories)
+                    FreeSectors(subDir);
+            }
 
+            foreach (long address in EnumerateSectors(obj.Address, FindSectorCountAndByteIndex(obj.ByteCount, out _)))
+                FreeSectorAt(address);
         }
-
         internal void FreeSectorAt(long address)
         {
             int index = (int)((address - RootAddress) / SectorSize);
@@ -309,6 +381,81 @@ namespace FileSystemNS
             _stream.WriteByteAt(BITMAP_INDEX + index, _bitMap.GetByte(index));
         }
 
+        private int FindSectorCountAndByteIndex(long byteCount, out long index)
+        {
+            index = 0;
+            return byteCount < FirstSectorInfoSize
+                ? 0
+                : 1 + (int)Math.DivRem(byteCount - FirstSectorInfoSize, SectorInfoSize / ADDRESS_BYTES, out index);
+        }
+
+        private IEnumerable<long> EnumerateSectors(long address, int sectorCount)
+        {
+            yield return address;
+            if (sectorCount == 0) yield break;
+
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            long currAddress = address;
+
+            for (int i = 0; i < sectorCount; i++)
+            {
+                _stream.ReadAt(currAddress + NextSectorAddressIndex, bytes, 0, bytes.Length);
+                currAddress = bytes.GetLong(0);
+                yield return currAddress;
+            }
+        }
+
         void IDisposable.Dispose() => Close();
+
+        private readonly struct ObjectSectors : ICollection<long>, IReadOnlyCollection<long>
+        {
+            private readonly Object _object;
+            private FileSystem FileSystem => _object.FileSystem;
+            public int Count { get; }
+            bool ICollection<long>.IsReadOnly => true;
+
+            public ObjectSectors(Object obj)
+            {
+                _object = obj ?? throw new ArgumentNullException(nameof(obj));
+                Count = _object.ByteCount <= _object.FileSystem.FirstSectorInfoSize
+                    ? 1
+                    : 2 + (int)((_object.ByteCount - _object.FileSystem.FirstSectorInfoSize) / _object.FileSystem.SectorInfoSize);
+            }
+
+            public bool Contains(long item)
+            {
+                foreach (var address in this)
+                    if (item == address) return true;
+
+                return false;
+            }
+
+            public void CopyTo(long[] array, int arrayIndex)
+            {
+                if (array is null) throw new ArgumentNullException(nameof(array));
+                if (array.Length < Count) throw new ArrayTooShortExcpetion(nameof(array));
+                if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new IndexOutOfBoundsException(nameof(arrayIndex));
+
+                foreach (var address in this)
+                    array[arrayIndex++] = address;
+            }
+
+            public IEnumerator<long> GetEnumerator()
+            {
+                byte[] bytes = new byte[ADDRESS_BYTES];
+                long currAddress = _object.Address;
+                for (int i = 0; i < Count; i++)
+                {
+                    FileSystem._stream.ReadAt(currAddress + FileSystem.NextSectorAddressIndex, bytes, 0, bytes.Length);
+                    currAddress = bytes.GetLong(0);
+                    yield return currAddress;
+                }
+            }
+
+            void ICollection<long>.Add(long item) => throw new NotSupportedException();
+            bool ICollection<long>.Remove(long item) => throw new NotSupportedException();
+            void ICollection<long>.Clear() => throw new NotSupportedException();
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        }
     }
 }
