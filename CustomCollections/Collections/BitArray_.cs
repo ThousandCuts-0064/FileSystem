@@ -82,31 +82,29 @@ namespace CustomCollections
                     if (item)
                     {
                         for (int y = 0; y < BYTE_BITS; y++)
-                            if ((_bytes[i] & (byte)(sbyte.MinValue >> y)) != 0)
+                            if ((_bytes[i] & 1 << BYTE_LAST_BIT - y) != 0)
                                 return i * BYTE_BITS + y;
                     }
                     else
                         for (int y = 0; y < BYTE_BITS; y++)
-                            if ((_bytes[i] & (byte)(sbyte.MinValue >> y)) == 0)
+                            if ((_bytes[i] & 1 << BYTE_LAST_BIT - y) == 0)
                                 return i * BYTE_BITS + y;
                 }
                 i++;
             }
 
-            if (Count == _bytes.Length / BYTE_BITS) return -1;
-
-            int leftover = Count / BYTE_BITS - _bytes.Length;
+            int leftover = Count - (_bytes.Length - 1) / BYTE_BITS;
             byte last = _bytes[_bytes.Length - 1];
 
             if (item)
             {
                 for (int y = 0; y < leftover; y++)
-                    if ((last & (byte)(sbyte.MinValue >> y)) != 0)
+                    if ((last & 1 << BYTE_LAST_BIT - y) != 0)
                         return i * BYTE_BITS + y;
             }
             else
                 for (int y = 0; y < leftover; y++)
-                    if ((last & (byte)(sbyte.MinValue >> y)) == 0)
+                    if ((last & 1 << BYTE_LAST_BIT - y) == 0)
                         return i * BYTE_BITS + y;
 
             return -1;

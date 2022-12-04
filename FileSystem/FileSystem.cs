@@ -233,7 +233,7 @@ namespace FileSystemNS
         {
             byte[] bytes = new byte[NAME_BYTES];
             _stream.ReadAt(address + NAME_INDEX, bytes, 0, NAME_BYTES);
-            return Encoding.Unicode.GetString(bytes);
+            return Encoding.Unicode.GetString(bytes).TrimEnd_('\0');
         }
 
         internal void SerializeName(Object obj) => SetNameAt(obj.Address, obj.Name);
@@ -280,14 +280,15 @@ namespace FileSystemNS
             int countFirstSector = Math.Min(count, FirstSectorInfoSize);
             _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, index, countFirstSector);
             count -= countFirstSector;
-            index += countFirstSector;
             if (count == 0) return;
 
+            index += countFirstSector;
             int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
             byte[] addressBytes = new byte[ADDRESS_BYTES];
             _stream.ReadAt(address + NextSectorAddressIndex, addressBytes, 0, addressBytes.Length);
+
             long lastFullSectorAddress = -1;
-            foreach (var currAddress in EnumerateSectors(addressBytes.GetLong(0), fullSectors))
+            foreach (var currAddress in EnumerateSectors(addressBytes.GetLong(0), fullSectors, false))
             {
                 _stream.ReadAt(currAddress, bytes, index, SectorInfoSize);
                 index += SectorInfoSize;
@@ -307,29 +308,40 @@ namespace FileSystemNS
         internal void AppendInfoBytes(Object obj, byte[] bytes)
         {
             SetByteCountAt(obj.Address, obj.ByteCount + bytes.Length);
-            SetInfoBytesAt(EnumerateSectors(obj.Address, FindSectorCountAndByteIndex(obj.ByteCount, out long index)).Last_() + index, bytes);
+            SetInfoBytesAt(EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out long index), true).Last_() + index, bytes);
         }
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes) => SetInfoBytesAt(byteAddress, bytes, 0, bytes.Length);
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes, int index, int count)
         {
-            int countFirstSector = (int)Math.Min(count, SectorInfoSize - byteAddress % SectorInfoSize);
+            if (count == 0) return;
+
+            long FirstSectorFreeSpace = SectorInfoSize - 1 - byteAddress % SectorInfoSize;
+            int countFirstSector = (int)Math.Min(count, FirstSectorFreeSpace);
             _stream.WriteAt(byteAddress, bytes, index, countFirstSector);
             count -= countFirstSector;
             if (count == 0) return;
 
             index += countFirstSector;
             int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
+
+            byte[] addressBytes = new byte[ADDRESS_BYTES];
+            long lastFreeAddress = byteAddress + FirstSectorFreeSpace;
             long freeAddress;
 
             for (int i = 0; i < fullSectors; i++)
             {
                 freeAddress = FindFreeSector();
+                freeAddress.GetBytes(addressBytes, 0);
+                _stream.WriteAt(lastFreeAddress, addressBytes, index, ADDRESS_BYTES);
                 _stream.WriteAt(freeAddress, bytes, index, SectorInfoSize);
                 index += SectorInfoSize;
                 AllocateSectorAt(freeAddress);
+                lastFreeAddress = freeAddress;
             }
 
             freeAddress = FindFreeSector();
+            freeAddress.GetBytes(addressBytes, 0);
+            _stream.WriteAt(lastFreeAddress, addressBytes, index, ADDRESS_BYTES);
             _stream.WriteAt(freeAddress, bytes, index, remaining);
             AllocateSectorAt(freeAddress);
         }
@@ -337,19 +349,21 @@ namespace FileSystemNS
         internal void RemoveObjectFromDirectory(Directory dir, int objIndex) => RemoveObjectFromAt(dir.Address, dir.ByteCount, objIndex);
         internal void RemoveObjectFromAt(long address, long byteCount, int objIndex)
         {
-            int objsInFirstSector = FirstSectorInfoSize / ADDRESS_BYTES;
-            int objIndexInSector = objIndex;
-            int objSectorIndex = objIndex < objsInFirstSector
-                ? 0
-                : 1 + Math.DivRem(objIndex - objsInFirstSector, SectorInfoSize / ADDRESS_BYTES, out objIndexInSector);
-            long objSectorAddress = EnumerateSectors(address, objSectorIndex).Last_();
-
             byte[] bytes = new byte[ADDRESS_BYTES];
-            EnumerateSectors(address, FindSectorCountAndByteIndex(byteCount, out long lastAddressIndex) - objSectorIndex)
-                .Last_()
-                .GetBytes(bytes, 0);
+            int objSectorIndex = FullSectorsAndByteIndex(objIndex * ADDRESS_BYTES, out long byteIndex);
+            long objSectorAddress = EnumerateSectors(address, objSectorIndex, true).Last_();
+            long objAddres = objSectorAddress + byteIndex;
 
-            //_stream.WriteAt(objSectorAddress + INFO_BYTES_INDEX + objIndexInSector * ADDRESS_BYTES, bytes, 0, bytes.Length);
+            long lastSector = EnumerateSectors(
+                objSectorAddress,
+                FullSectorsAndByteIndex(byteCount, out long lastAddressIndex) - objSectorIndex,
+                true)
+                    .Last_();
+
+            (lastSector + lastAddressIndex).GetBytes(bytes, 0);
+            _stream.WriteAt(objAddres, bytes, 0, bytes.Length);
+
+            if (lastAddressIndex % SectorSize == 0) FreeSectorAt(lastAddressIndex);
         }
 
         internal long FindFreeSector() => (long)_bitMap.IndexOf(false) * SectorSize;
@@ -369,7 +383,7 @@ namespace FileSystemNS
                     FreeSectors(subDir);
             }
 
-            foreach (long address in EnumerateSectors(obj.Address, FindSectorCountAndByteIndex(obj.ByteCount, out _)))
+            foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), true))
                 FreeSectorAt(address);
         }
         internal void FreeSectorAt(long address)
@@ -381,17 +395,17 @@ namespace FileSystemNS
             _stream.WriteByteAt(BITMAP_INDEX + index, _bitMap.GetByte(index));
         }
 
-        private int FindSectorCountAndByteIndex(long byteCount, out long index)
+        private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
-            index = 0;
+            byteIndex = 0;
             return byteCount < FirstSectorInfoSize
                 ? 0
-                : 1 + (int)Math.DivRem(byteCount - FirstSectorInfoSize, SectorInfoSize / ADDRESS_BYTES, out index);
+                : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
         }
 
-        private IEnumerable<long> EnumerateSectors(long address, int sectorCount)
+        private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldAddressAsFirst)
         {
-            yield return address;
+            if (yieldAddressAsFirst) yield return address;
             if (sectorCount == 0) yield break;
 
             byte[] bytes = new byte[ADDRESS_BYTES];

@@ -14,7 +14,7 @@ namespace FileSystemNS
 
         internal FileSystem FileSystem { get; }
         internal long Address { get; private set; }
-        internal long ByteCount { get; private set; }
+        internal long ByteCount { get; private protected set; }
         internal ObjectFlags ObjectFlags { get; private set; }
 
         public Directory Parent { get; private set; }
@@ -58,12 +58,6 @@ namespace FileSystemNS
                             : name;
 
         private protected abstract byte[] OnSerializeBytes();
-
-        private protected void TrimBytes(int count)
-        {
-            ByteCount -= count;
-            FileSystem.SerializeByteCount(this);
-        }
 
         private string GetFullName()
         {

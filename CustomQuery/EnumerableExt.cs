@@ -13,7 +13,9 @@ namespace CustomQuery
             if (source is null) throw new ArgumentNullException(nameof(source));
 
             if (source is IList<T> collection)
-                return collection[collection.Count - 1];
+                return collection.Count > 0
+                    ? collection[collection.Count - 1]
+                    : throw new CollectionEmptyException(nameof(source));
 
             var enumerator = source.GetEnumerator();
             if (!enumerator.MoveNext()) throw new CollectionEmptyException(nameof(source));

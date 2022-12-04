@@ -103,15 +103,29 @@ namespace UI
                             break;
 
                         case MKDIR:
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify a name.");
+                                break;
+                            }
+
                             _currDir.CreateSubdirectory(commands[1]);
                             break;
 
                         case RMDIR:
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify a name.");
+                                break;
+                            }
+
                             _currDir.TryRemoveSubdirectory(commands[1]);
                             break;
 
                         case LS:
                             Console.WriteLine(_currDir.Name);
+                            if (_currDir.SubDirectories.Count == 0) break;
+
                             for (int i = 0; i < _currDir.SubDirectories.Count - 1; i++)
                                 Console.WriteLine('├' + _currDir.SubDirectories[i].Name);
                             Console.WriteLine('└' + _currDir.SubDirectories.Last_().Name);
@@ -125,7 +139,7 @@ namespace UI
                             }
 
                             int newDirIndex = _currDir.SubDirectories.IndexOf_(dir => dir.Name == commands[1]);
-                            if (newDirIndex == 1)
+                            if (newDirIndex == -1)
                             {
                                 Console.WriteLine($"\"{commands[1]}\" was not found.");
                                 break;

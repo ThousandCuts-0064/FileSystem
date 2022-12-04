@@ -62,9 +62,10 @@ namespace FileSystemNS
             byte[] bytes = new byte[ADDRESS_BYTES];
             address.GetBytes(bytes, 0);
             FileSystem.AppendInfoBytes(this, bytes);
+            ByteCount += bytes.Length;
+
             FileSystem.SerializeProperties(directory);
             FileSystem.AllocateSectorAt(address);
-
             return directory;
         }
 
@@ -76,7 +77,9 @@ namespace FileSystemNS
             FileSystem.FreeSectors(_subDirectories[index]);
             FileSystem.RemoveObjectFromDirectory(this, index);
             _subDirectories.RemoveAt(index);
-            TrimBytes(ADDRESS_BYTES);
+            ByteCount -= ADDRESS_BYTES;
+            FileSystem.SerializeByteCount(this);
+
             return true;
         }
 
