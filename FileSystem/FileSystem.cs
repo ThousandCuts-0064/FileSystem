@@ -49,7 +49,7 @@ namespace FileSystemNS
         public static FileSystem Create(FileStream fileStream, string name, long totalSize, ushort sectorSize)
         {
             long sectorCount = totalSize / sectorSize;
-            var bitMap = new BitArray_(Math_.DivCeiling(sectorCount, BYTE_BITS)); // BitmapBytes may be too large
+            var bitMap = new BitArray_((int)sectorCount); // BitmapBytes may be too large
 
             FileSystem fileSystem = new FileSystem(
                 fileStream ?? throw new ArgumentNullException(nameof(fileStream)),
@@ -79,10 +79,10 @@ namespace FileSystemNS
             long totalSize = bytes.GetLong(TOTAL_SIZE_INDEX);
             ushort sectorSize = bytes.GetUShort(SECTOR_SIZE_INDEX);
             long sectorCount = bytes.GetLong(SECTOR_COUNT_INDEX);
-            bytes = new byte[sectorCount / BYTE_BITS + sectorCount % BYTE_BITS > 0 ? 1 : 0];
+            bytes = new byte[Math_.DivCeiling(sectorCount, BYTE_BITS)];
 
             fileStream.ReadAt(BITMAP_INDEX, bytes, 0, bytes.Length);
-            BitArray_ bitmap = new BitArray_(bytes);
+            BitArray_ bitmap = new BitArray_(bytes, checked((int)sectorCount));
 
             FileSystem fileSystem = new FileSystem(fileStream, totalSize, sectorSize, sectorCount, bitmap);
 
@@ -134,6 +134,7 @@ namespace FileSystemNS
             if (fs.HasFlag(FS.Root))
             {
                 strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address)).ToHex_());
+                strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address + 1)).ToHex_());
 
                 byte[] bytes = new byte[NAME_BYTES];
                 _stream.ReadAt(RootDirectory.Address + 1, bytes, 0, bytes.Length);
@@ -195,6 +196,7 @@ namespace FileSystemNS
             if (fs.HasFlag(FS.Root))
             {
                 strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address)).ToBin_());
+                strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address + 1)).ToBin_());
 
                 byte[] bytes = new byte[NAME_BYTES];
                 _stream.ReadAt(RootDirectory.Address + NAME_INDEX, bytes, 0, bytes.Length);
@@ -366,15 +368,34 @@ namespace FileSystemNS
             if (lastAddressIndex % SectorSize == 0) FreeSectorAt(lastAddressIndex);
         }
 
-        internal long FindFreeSector() => (long)_bitMap.IndexOf(false) * SectorSize;
+        internal long FindFreeSector()
+        {
+            int index = _bitMap.IndexOf(false);
+            return index == -1
+                ? throw new OutOfMemoryException("No more free sectors")
+                : index * SectorSize + RootAddress;
+        }
+
         internal void AllocateSectorAt(long address)
         {
             int index = (int)((address - RootAddress) / SectorSize);
+            int byteIndex = index / BYTE_BITS;
             _bitMap[index] = _bitMap[index]
                 ? throw new ArgumentException("Sector is already in use.", nameof(address))
                 : true;
-            _stream.WriteByteAt(BITMAP_INDEX + index / BYTE_BITS, _bitMap.GetByte(index));
+            _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
         }
+
+        internal void FreeSectorAt(long address)
+        {
+            int index = (int)((address - RootAddress) / SectorSize);
+            int byteIndex = index / BYTE_BITS;
+            _bitMap[index] = _bitMap[index]
+                ? false
+                : throw new ArgumentException("Sector is already free.", nameof(address));
+            _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
+        }
+
         internal void FreeSectors(Object obj)
         {
             if (obj is Directory dir)
@@ -386,18 +407,10 @@ namespace FileSystemNS
             foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), true))
                 FreeSectorAt(address);
         }
-        internal void FreeSectorAt(long address)
-        {
-            int index = (int)((address - RootAddress) / SectorSize);
-            _bitMap[index] = _bitMap[index]
-                ? false
-                : throw new ArgumentException("Sector is already free.", nameof(address));
-            _stream.WriteByteAt(BITMAP_INDEX + index, _bitMap.GetByte(index));
-        }
 
         private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
-            byteIndex = 0;
+            byteIndex = INFO_BYTES_INDEX + byteCount;
             return byteCount < FirstSectorInfoSize
                 ? 0
                 : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);

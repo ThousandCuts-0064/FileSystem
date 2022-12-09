@@ -14,23 +14,31 @@ namespace FileSystemNS
         private const int PAD_COUNT = 10;
         private static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
 
-        public static FileSystem Open()
+        public static FileSystem Open(string input)
         {
             FileSystem fileSystem = null;
             do
             {
-                Console.WriteLine("Chose a file or type \"help\" for more info.");
+                string[] commands;
+                if (input.IsNullOrEmpty_())
+                {
+                    Console.WriteLine("Chose a file or type \"help\" for more info.");
+                    Console.WriteLine();
+                    commands = Console.ReadLine().TrimEnd_(' ').Split_(' ', 2);
+                    Console.WriteLine();
+                }
+                else
+                {
+                    commands = input.TrimEnd_(' ').Split_(' ', 2);
+                    input = "";
+                }
 
-                Console.WriteLine();
-                string[] commands = Console.ReadLine().TrimEnd_(' ').Split_(' ', 2);
                 if (commands.Length == 0)
                 {
-                    Console.WriteLine();
                     Console.WriteLine("Please enter a command");
                     Console.WriteLine();
                     continue;
                 }
-                Console.WriteLine();
 
                 switch (commands[0].ToUpperASCII_())
                 {
@@ -62,8 +70,8 @@ namespace FileSystemNS
 
                         if (error is null)
                         {
-                            fileSystem = FileSystem.Create(File.Create(_defaultDirectory + fileName), fileName, totalSize, sectorSize);
-                            break;
+                            fileSystem = FileSystem.Create(System.IO.File.Create(_defaultDirectory + fileName), fileName, totalSize, sectorSize);
+                            continue;
                         }
 
                         Console.WriteLine(error);
@@ -88,17 +96,17 @@ namespace FileSystemNS
 
                         string fullPath = _defaultDirectory + commands[1].TrimEnd_(' ');
 
-                        if (File.Exists(fullPath))
+                        if (System.IO.File.Exists(fullPath))
                         {
-                            fileSystem = FileSystem.Open(File.Open(fullPath, FileMode.Open));
-                            break;
+                            fileSystem = FileSystem.Open(System.IO.File.Open(fullPath, FileMode.Open));
+                            continue;
                         }
 
                         Console.WriteLine("File doesn't exist. Please enter a valid file name.");
                         break;
 
                     default:
-                        Console.WriteLine("Unrecognized command. Type \"help\" for more info.");
+                        Console.WriteLine($"\"{commands[0]}\" is not recognized. Type \"help\" for more info.");
                         break;
                 }
                 Console.WriteLine();

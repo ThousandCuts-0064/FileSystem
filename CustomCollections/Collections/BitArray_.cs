@@ -17,7 +17,7 @@ namespace CustomCollections
         public bool this[int index]
         {
             get => (uint)index < (uint)Count
-                ? (_bytes[index / BYTE_BITS] & 1 << BYTE_LAST_BIT - index) == 1
+                ? (_bytes[index / BYTE_BITS] & 1 << BYTE_LAST_BIT - index % BYTE_BITS) != 0
                 : throw new IndexOutOfBoundsException(nameof(index));
 
             set
@@ -25,8 +25,11 @@ namespace CustomCollections
                 if ((uint)index >= (uint)Count)
                     throw new IndexOutOfBoundsException(nameof(index));
 
-                int val = sbyte.MinValue >> index % BYTE_BITS;
-                _bytes[index / BYTE_BITS] = (byte)(value ? val : ~val);
+                int val = 1 << BYTE_LAST_BIT - index % BYTE_BITS;
+                if (value)
+                    _bytes[index / BYTE_BITS] |= (byte)val;
+                else
+                    _bytes[index / BYTE_BITS] &= (byte)~val;
             }
         }
 
@@ -58,18 +61,7 @@ namespace CustomCollections
             return bytes;
         }
 
-        public bool Contains(bool item)
-        {
-            byte val = item ? byte.MinValue : byte.MaxValue;
-
-            for (int i = 0; i < _bytes.Length - 1; i++)
-                if (_bytes[i] != val) return true;
-
-            val = (byte)((sbyte.MinValue >> (Count % BYTE_BITS)) - 1);
-            return Count != _bytes.Length / BYTE_BITS // false if Count matches _bytes.Length / BYTE_BITS
-                && _bytes[_bytes.Length - 1] != (byte)(item ? ~val : val);
-        }
-
+        public bool Contains(bool item) => IndexOf(item) != -1;
         public int IndexOf(bool item)
         {
             byte val = item ? byte.MinValue : byte.MaxValue;
@@ -134,11 +126,10 @@ namespace CustomCollections
                     yield return (item >> i & 1) == 1;
         }
 
-        public void Add(bool item) => throw new NotSupportedException();
-        public void Insert(int index, bool item) => throw new NotSupportedException();
-        public bool Remove(bool item) => throw new NotSupportedException();
-        public void RemoveAt(int index) => throw new NotSupportedException();
-
+        void ICollection<bool>.Add(bool item) => throw new NotSupportedException();
+        void IList<bool>.Insert(int index, bool item) => throw new NotSupportedException();
+        bool ICollection<bool>.Remove(bool item) => throw new NotSupportedException();
+        void IList<bool>.RemoveAt(int index) => throw new NotSupportedException();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     }

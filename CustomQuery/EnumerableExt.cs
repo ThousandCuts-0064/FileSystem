@@ -17,15 +17,17 @@ namespace CustomQuery
                     ? collection[collection.Count - 1]
                     : throw new CollectionEmptyException(nameof(source));
 
-            var enumerator = source.GetEnumerator();
-            if (!enumerator.MoveNext()) throw new CollectionEmptyException(nameof(source));
-            T last = enumerator.Current;
+            using (var enumerator = source.GetEnumerator())
+            {
+                if (!enumerator.MoveNext()) throw new CollectionEmptyException(nameof(source));
+                T last = enumerator.Current;
 
-            while (enumerator.MoveNext())
-                last = enumerator.Current;
+                while (enumerator.MoveNext())
+                    last = enumerator.Current;
 
-            return last;
-        }    
+                return last;
+            }
+        }
 
         public static T[] ToArray_<T>(this IEnumerable<T> source) =>
             source is null
@@ -68,6 +70,51 @@ namespace CustomQuery
                 yield return selector(item);
         }
 
+        public static IEnumerable<TResult> SelectTree_<TSource, TResult>(
+            this IEnumerable<TSource> source,
+            Func<TSource, IEnumerable<TSource>> childSelector,
+            Func<TSource, int, TResult> selector)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (childSelector is null) throw new ArgumentNullException(nameof(childSelector));
+            if (selector is null) throw new ArgumentNullException(nameof(selector));
+
+            var stack = new Stack<IEnumerator<TSource>>();
+            var enumerator = source.GetEnumerator();
+
+            try
+            {
+                while (true)
+                {
+                    if (enumerator.MoveNext())
+                    {
+                        TSource element = enumerator.Current;
+                        yield return selector(element, stack.Count);
+
+                        stack.Push(enumerator);
+                        enumerator = childSelector(element).GetEnumerator();
+                    }
+                    else if (stack.Count > 0)
+                    {
+                        enumerator.Dispose();
+                        enumerator = stack.Pop();
+                    }
+                    else
+                        yield break;
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+
+                while (stack.Count > 0) // Clean up in case of an exception.
+                {
+                    enumerator = stack.Pop();
+                    enumerator.Dispose();
+                }
+            }
+        }
+
         public static bool Contains_<T>(this IEnumerable<T> source, T element)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
@@ -75,6 +122,16 @@ namespace CustomQuery
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
                 if (comparer.Equals(item, element)) return true;
+            return false;
+        }
+
+        public static bool Contains_<T>(this IEnumerable<T> source, Predicate<T> predicate)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+
+            foreach (var item in source)
+                if (predicate(item)) return true;
             return false;
         }
 
@@ -103,7 +160,7 @@ namespace CustomQuery
             foreach (var item in source)
                 for (int i = 0; i < unorderedBuffer.Count; i++)
                 {
-                    if (comparer.Equals(item, unorderedBuffer.Buffer.Array[i])) 
+                    if (comparer.Equals(item, unorderedBuffer.Buffer.Array[i]))
                         unorderedBuffer.RemoveAt(i);
                     if (unorderedBuffer.Count == 0) return true;
                 }

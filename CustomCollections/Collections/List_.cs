@@ -171,6 +171,16 @@ namespace CustomCollections
             _array[Count] = default;
         }
 
+        public void RemoveLast(int count)
+        {
+            if ((uint)count > (uint)Count) throw new IndexOutOfBoundsException(nameof(count));
+            if (Count - count < 0) throw new ArrayTooShortExcpetion(nameof(count));
+
+            Count -= count;
+            for (int i = 0; i < count; i++)
+                _array[Count - 1 + i] = default;
+        }
+
         public void Clear()
         {
             if (Count == 0) return;

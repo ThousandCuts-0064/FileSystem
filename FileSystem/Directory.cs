@@ -1,11 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using ExceptionsNS;
 using CustomQuery;
 using CustomCollections;
-using Text;
-using System.Text;
-using static Core.Constants;
 using static FileSystemNS.Constants;
 
 namespace FileSystemNS
@@ -13,13 +9,17 @@ namespace FileSystemNS
     public sealed class Directory : Object
     {
         private readonly IList<Directory> _subDirectories;
+        private readonly IList<Object> _files;
         public IReadOnlyList<Directory> SubDirectories { get; }
+        public IReadOnlyList<Object> Files { get; }
 
         private Directory(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
             : base(fileSystem, parent, address, objectFlags, name, byteCount)
         {
             _subDirectories = new UnorderedList_<Directory>();
             SubDirectories = _subDirectories.ToReadOnly();
+            _files = new UnorderedList_<Object>();
+            Files = _files.ToReadOnly();
         }
 
         internal static Directory CreateRoot(FileSystem fileSystem, string name)
@@ -53,10 +53,15 @@ namespace FileSystemNS
             return directory;
         }
 
-        public Directory CreateSubdirectory(string name)
+        public FSResult CreateSubdirectory(string name, out Directory directory)
         {
+            directory = null;
+
+            if (_subDirectories.Contains_(dir => dir.Name == name))
+                return FSResult.NameTaken;
+
             long address = FileSystem.FindFreeSector();
-            var directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, ValidatedName(name), 0);
+            directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, ValidatedName(name), 0);
             _subDirectories.Add(directory);
 
             byte[] bytes = new byte[ADDRESS_BYTES];
@@ -66,7 +71,7 @@ namespace FileSystemNS
 
             FileSystem.SerializeProperties(directory);
             FileSystem.AllocateSectorAt(address);
-            return directory;
+            return FSResult.Success;
         }
 
         public bool TryRemoveSubdirectory(string name)
@@ -86,22 +91,48 @@ namespace FileSystemNS
         internal override void DeserializeBytes(byte[] bytes)
         {
             int addressCount = bytes.Length / ADDRESS_BYTES;
-            for (int i = 0; i < addressCount; i++)
+            ObjectFlags flags;
+            long address;
+            int i = 0;
+            while (i < addressCount)
             {
-                long address = bytes.GetLong(i * ADDRESS_BYTES);
+                address = bytes.GetLong(i++ * ADDRESS_BYTES);
+                flags = FileSystem.GetObjectFlagsAt(address);
+                if (!flags.HasFlag(ObjectFlags.Folder))
+                {
+                    AddFile();
+                    break;
+                }
+
                 _subDirectories.Add(new Directory(
                     FileSystem,
                     this,
                     address,
-                    FileSystem.GetObjectFlagsAt(address),
+                    flags,
                     FileSystem.GetNameAt(address),
                     FileSystem.GetByteCountAt(address)));
             }
+
+            while (i < addressCount)
+            {
+                address = bytes.GetLong(i++ * ADDRESS_BYTES);
+                flags = FileSystem.GetObjectFlagsAt(address);
+                AddFile();
+            }
+
+            void AddFile() => 
+                _files.Add(new File(
+                    FileSystem,
+                    this,
+                    address,
+                    flags,
+                    FileSystem.GetNameAt(address),
+                    FileSystem.GetByteCountAt(address)));
         }
 
         private protected override byte[] OnSerializeBytes()
         {
-            byte[] bytes = new byte[_subDirectories.Count * ADDRESS_BYTES];
+            byte[] bytes = new byte[(_subDirectories.Count + _files.Count) * ADDRESS_BYTES];
             for (int i = 0; i < _subDirectories.Count; i++)
                 _subDirectories[i].Address.GetBytes(bytes, i * ADDRESS_BYTES);
             return bytes;

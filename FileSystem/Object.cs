@@ -24,7 +24,7 @@ namespace FileSystemNS
         private protected Object(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
         {
             FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-            if (address <= 0) throw new ArgumentOutOfRangeException(nameof(address), "Number must be positive");
+            if (address <= 0) throw new NumberNotPositiveException(nameof(address));
             Parent = parent;
             Address = Parent is null
                 ? address == fileSystem.RootAddress

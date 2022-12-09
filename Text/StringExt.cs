@@ -7,6 +7,8 @@ namespace Text
 {
     public static class StringExt
     {
+        public static bool IsNullOrEmpty_(this string str) => str is null || str == "";
+
         public static string ToUpperASCII_(this string str)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));
@@ -34,7 +36,7 @@ namespace Text
             if (str == "") return str;
 
             int i = 0;
-            while (str[i] == trim && i < str.Length) i++;
+            while (i < str.Length && str[i] == trim) i++;
             return str.SubstringAt_(i, str.Length - 1);
         }
 
@@ -45,7 +47,7 @@ namespace Text
             if (str == "") return str;
 
             int i = str.Length - 1;
-            while (str[i] == trim && i >= 0) i--;
+            while (i >= 0 && str[i] == trim) i--;
             return str.SubstringAt_(0, i);
         }
 
