@@ -11,6 +11,8 @@ namespace CustomCollections
     {
         private readonly byte[] _bytes;
         public int Count { get; private set; }
+        public int SetBits { get; private set; }
+        public int UnsetBits => Count - SetBits;
         public int ByteCount => _bytes.Length;
         bool ICollection<bool>.IsReadOnly => false;
 
@@ -26,18 +28,24 @@ namespace CustomCollections
                     throw new IndexOutOfBoundsException(nameof(index));
 
                 int val = 1 << BYTE_LAST_BIT - index % BYTE_BITS;
+                int byteIndex = index / BYTE_BITS;
+                byte target = _bytes[byteIndex];
                 if (value)
-                    _bytes[index / BYTE_BITS] |= (byte)val;
-                else
-                    _bytes[index / BYTE_BITS] &= (byte)~val;
-            }
-        }
+                {
+                    target |= (byte)val;
+                    if (target == _bytes[byteIndex]) return;
 
-        public BitArray_(byte[] bytes)
-        {
-            _bytes = new byte[bytes.Length];
-            Array.Copy(bytes, _bytes, _bytes.Length);
-            Count = bytes.Length * BYTE_BITS;
+                    SetBits++;
+                }
+                else
+                {
+                    target &= (byte)~val;
+                    if (target == _bytes[byteIndex]) return;
+
+                    SetBits--;
+                }
+                _bytes[byteIndex] = target;
+            }
         }
 
         public BitArray_(int length)
@@ -46,11 +54,22 @@ namespace CustomCollections
             Count = length;
         }
 
+        public BitArray_(byte[] bytes)
+        {
+            _bytes = new byte[bytes.Length];
+            Array.Copy(bytes, _bytes, _bytes.Length);
+            Count = bytes.Length * BYTE_BITS;
+            foreach (var bit in this)
+                if (bit) SetBits++;
+        }
+
         public BitArray_(byte[] bytes, int lenth)
         {
             _bytes = new byte[bytes.Length];
             Array.Copy(bytes, _bytes, _bytes.Length);
             Count = lenth;
+            foreach (var bit in this)
+                if (bit) SetBits++;
         }
 
         public byte GetByte(int index) => _bytes[index];
@@ -66,8 +85,9 @@ namespace CustomCollections
         {
             byte val = item ? byte.MinValue : byte.MaxValue;
             int i = 0;
+            int fullBytes = Math.DivRem(Count, BYTE_BITS, out int leftover);
 
-            while (i < _bytes.Length - 1)
+            while (i < fullBytes)
             {
                 if (_bytes[i] != val)
                 {
@@ -84,8 +104,8 @@ namespace CustomCollections
                 }
                 i++;
             }
+            if (leftover == 0) return -1;
 
-            int leftover = Count - (_bytes.Length - 1) / BYTE_BITS;
             byte last = _bytes[_bytes.Length - 1];
 
             if (item)
@@ -112,18 +132,14 @@ namespace CustomCollections
                 array[arrayIndex] = this[arrayIndex++];
         }
 
-        public void Clear()
-        {
-            Array.Clear(_bytes, 0, _bytes.Length);
-            Count = 0;
-        }
+        public void Clear() => Array.Clear(_bytes, 0, _bytes.Length);
 
         public IEnumerator<bool> GetEnumerator()
         {
             int c = 0;
             foreach (var item in _bytes)
                 for (int i = 0; i < BYTE_BITS && c++ < Count; i++)
-                    yield return (item >> i & 1) == 1;
+                    yield return (item & 1 << BYTE_LAST_BIT - i) != 0;
         }
 
         void ICollection<bool>.Add(bool item) => throw new NotSupportedException();

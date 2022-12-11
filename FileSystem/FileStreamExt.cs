@@ -20,12 +20,14 @@ namespace FileSystemNS
         {
             fileStream.Position = position;
             fileStream.WriteByte(b);
+            fileStream.Flush();
         }
 
         public static void WriteAt(this FileStream fileStream, long position, byte[] bytes, int offset, int count)
         {
             fileStream.Position = position;
             fileStream.Write(bytes, offset, count);
+            fileStream.Flush();
         }
     }
 }

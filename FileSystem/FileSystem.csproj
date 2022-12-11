@@ -59,6 +59,7 @@
     <Compile Include="FileStreamExt.cs" />
     <Compile Include="FileSystem.cs" />
     <Compile Include="Enums\BootByte.cs" />
+    <Compile Include="FSResultExt.cs" />
     <Compile Include="Object.cs" />
     <Compile Include="Enums\ObjectFlags.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

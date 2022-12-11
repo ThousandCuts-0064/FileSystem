@@ -18,6 +18,7 @@ namespace FileSystemNS
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
 
+        internal int FreeSectors => _bitMap.UnsetBits;
         internal long SectorCount { get; }
         internal ushort SectorSize { get; }
         internal ushort NextSectorAddressIndex { get; }
@@ -330,7 +331,7 @@ namespace FileSystemNS
             long lastFreeAddress = byteAddress + FirstSectorFreeSpace;
             long freeAddress;
 
-            for (int i = 0; i < fullSectors; i++)
+            for (int i = 0; i < fullSectors; i++)// TODO: Check for avalible space
             {
                 freeAddress = FindFreeSector();
                 freeAddress.GetBytes(addressBytes, 0);
@@ -358,11 +359,11 @@ namespace FileSystemNS
 
             long lastSector = EnumerateSectors(
                 objSectorAddress,
-                FullSectorsAndByteIndex(byteCount, out long lastAddressIndex) - objSectorIndex,
+                FullSectorsAndByteIndex(byteCount - ADDRESS_BYTES, out long lastAddressIndex) - objSectorIndex,
                 true)
                     .Last_();
 
-            (lastSector + lastAddressIndex).GetBytes(bytes, 0);
+            _stream.ReadAt(lastSector + lastAddressIndex, bytes, 0, bytes.Length);
             _stream.WriteAt(objAddres, bytes, 0, bytes.Length);
 
             if (lastAddressIndex % SectorSize == 0) FreeSectorAt(lastAddressIndex);
@@ -380,6 +381,9 @@ namespace FileSystemNS
         {
             int index = (int)((address - RootAddress) / SectorSize);
             int byteIndex = index / BYTE_BITS;
+
+            if (index >= SectorCount) throw new ArgumentOutOfRangeException(nameof(address), $"{nameof(address)} exceeds the file system capacity.");
+
             _bitMap[index] = _bitMap[index]
                 ? throw new ArgumentException("Sector is already in use.", nameof(address))
                 : true;
@@ -390,18 +394,21 @@ namespace FileSystemNS
         {
             int index = (int)((address - RootAddress) / SectorSize);
             int byteIndex = index / BYTE_BITS;
+
+            if (index >= SectorCount) throw new ArgumentOutOfRangeException(nameof(address), $"{nameof(address)} exceeds the file system capacity.");
+
             _bitMap[index] = _bitMap[index]
                 ? false
                 : throw new ArgumentException("Sector is already free.", nameof(address));
             _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
         }
 
-        internal void FreeSectors(Object obj)
+        internal void FreeSectorsOf(Object obj)
         {
             if (obj is Directory dir)
             {
                 foreach (var subDir in dir.SubDirectories)
-                    FreeSectors(subDir);
+                    FreeSectorsOf(subDir);
             }
 
             foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), true))

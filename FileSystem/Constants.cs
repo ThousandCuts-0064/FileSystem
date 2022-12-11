@@ -1,11 +1,16 @@
-﻿using static Core.Constants;
+﻿using System.Collections.Generic;
+using CustomCollections;
+using static Core.Constants;
 
 namespace FileSystemNS
 {
-    internal static class Constants
+    public static class Constants
     {
-        internal const string NAME_FORBIDDEN_CHARS = @"\/";
         internal const int ADDRESS_BYTES = LONG_BYTES;
+        public const string NAME_FORBIDDEN_CHARS = @"\/";
+        public const string CUR_DIR = ".";
+        public const string PAR_DIR = "..";
+        public static readonly IReadOnlyList<string> ReservedNames = new string[] { CUR_DIR, PAR_DIR }.ToReadOnly();
 
         internal const int TOTAL_SIZE_INDEX = 1;
         internal const int SECTOR_SIZE_INDEX = TOTAL_SIZE_INDEX + LONG_BYTES;

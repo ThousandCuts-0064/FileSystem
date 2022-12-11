@@ -8,6 +8,7 @@ using CustomCollections;
 using CustomQuery;
 using FileSystemNS;
 using Text;
+using static FileSystemNS.Constants;
 
 namespace UI
 {
@@ -16,12 +17,17 @@ namespace UI
         private const string HELP = nameof(HELP);
         private const string HEX = nameof(HEX);
         private const string BIN = nameof(BIN);
-
+        private const string MD = nameof(MD);
         private const string MKDIR = nameof(MKDIR);
+        private const string REN = nameof(REN);
+        private const string RENAME = nameof(RENAME);
+        private const string CD = nameof(CD);
+        private const string CHDIR = nameof(CHDIR);
+        private const string RD = nameof(RD);
         private const string RMDIR = nameof(RMDIR);
         private const string LS = nameof(LS);
+        private const string DIR = nameof(DIR);
         private const string TREE = nameof(TREE);
-        private const string CD = nameof(CD);
 
         private readonly FileSystem _fileSystem;
         private Directory _currDir;
@@ -104,6 +110,7 @@ namespace UI
                             Console.ForegroundColor = ConsoleColor.Gray;
                             break;
 
+                        case MD:
                         case MKDIR:
                             if (commands.Length == 1)
                             {
@@ -111,13 +118,104 @@ namespace UI
                                 break;
                             }
 
-                            if (_currDir.CreateSubdirectory(commands[1], out _) == FSResult.NameTaken)
+                            FSResult resMD = _currDir.TryCreateSubdirectory(commands[1], out _);
+                            if (resMD != FSResult.Success)
                             {
-                                Console.WriteLine("Name is already taken");
+                                Console.WriteLine(resMD.ToMessage());
                                 break;
                             }
                             continue;
 
+
+                        case REN:
+                        case RENAME:
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify an object.");
+                                break;
+                            }
+
+                            string[] names = commands[1].Split(' ');
+                            if (names.Length == 1)
+                            {
+                                Console.WriteLine("Please specify a new name.");
+                                break;
+                            }
+
+                            FSResult resRen;
+
+                            if (names[0] == CUR_DIR)
+                                resRen = _currDir.TrySetName(names[1]);
+
+                            else if (names[0] == PAR_DIR)
+                            {
+                                if (_currDir.Parent is null)
+                                {
+                                    Console.WriteLine("You are already at root directory");
+                                    break;
+                                }
+
+                                resRen = _currDir.Parent.TrySetName(names[1]);
+                            }
+                            else
+                            {
+                                var objRen = _currDir.EnumerateObjects().FirstOrDefault_(dir => dir.Name == names[0]);
+                                if (objRen is null)
+                                {
+                                    Console.WriteLine($"\"{names[0]}\" was not found.");
+                                    break;
+                                }
+
+                                if (names[0] == names[1])
+                                    continue;
+
+                                resRen = objRen.TrySetName(names[1]);
+                            }
+
+                            if (resRen == FSResult.Success)
+                                continue;
+
+                            Console.WriteLine(resRen.ToMessage());
+                            break;
+
+                        case CD:
+                        case CHDIR:
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify a name.");
+                                break;
+                            }
+
+                            if (commands[1] == CUR_DIR)
+                                continue;
+
+                            if (commands[1] == PAR_DIR)
+                            {
+                                if (_currDir.Parent is null)
+                                {
+                                    Console.WriteLine("You are already at root directory");
+                                    break;
+                                }
+
+                                _currDir = _currDir.Parent;
+                                continue;
+                            }
+
+                            var dirCD = _currDir.SubDirectories.FirstOrDefault_(dir => dir.Name == commands[1]);
+                            if (dirCD is null)
+                            {
+                                Console.WriteLine($"\"{commands[1]}\" was not found.");
+                                break;
+                            }
+
+                            _currDir = dirCD;
+                            continue;
+
+                        default:
+                            Console.WriteLine(commands[0] + " is not recognized. Type \"help\" for more info.");
+                            break;
+
+                        case RD:
                         case RMDIR:
                             if (commands.Length == 1)
                             {
@@ -125,12 +223,49 @@ namespace UI
                                 break;
                             }
 
-                            _currDir.TryRemoveSubdirectory(commands[1]);
+                            FSResult resRD;
+
+                            if (commands[1] == CUR_DIR)
+                            {
+                                if (_currDir.Parent is null)
+                                {
+                                    Console.WriteLine("Cannot remove the root directory");
+                                    break;
+                                }
+
+                                resRD = _currDir.Parent.TryRemoveSubdirectory(_currDir.Name);
+                            }
+                            else if (commands[1] == PAR_DIR)
+                            {
+                                if (_currDir.Parent is null)
+                                {
+                                    Console.WriteLine("The root directory has no parent");
+                                    break;
+                                }
+
+                                if (_currDir.Parent.Parent is null)
+                                {
+                                    Console.WriteLine("Cannot remove the root directory");
+                                    break;
+                                }
+
+                                resRD = _currDir.Parent.Parent.TryRemoveSubdirectory(_currDir.Parent.Name);
+                            }
+                            else
+                                resRD = _currDir.TryRemoveSubdirectory(commands[1]);
+
+                            if (resRD != FSResult.Success)
+                            {
+                                Console.WriteLine(resRD.ToMessage());
+                                break;
+                            }
                             continue;
 
                         case LS:
+                        case DIR:
                             Console.WriteLine(_currDir.Name);
-                            if (_currDir.SubDirectories.Count == 0) break;
+                            if (_currDir.SubDirectories.Count == 0) 
+                                break;
 
                             for (int i = 0; i < _currDir.SubDirectories.Count - 1; i++)
                                 Console.WriteLine('├' + _currDir.SubDirectories[i].Name);
@@ -170,42 +305,19 @@ namespace UI
                                         {
                                             chs[i * level] = str[i];
                                             for (int y = 1; y < level; y++)
-                                            {
                                                 chs[i * level + y] = ' ';
-                                            }
                                         }
                                         int last = str.Length - 1;
                                         chs[last * level] = str[last];
                                         for (int y = 1; y < level; y++)
-                                        {
                                             chs[last * level + y] = '─';
-                                        }
+
                                         return new string(chs);
                                     }
                                 }))
                                 Console.WriteLine(item);
                             break;
 
-                        case CD:
-                            if (commands.Length == 1)
-                            {
-                                Console.WriteLine("Please specify a name.");
-                                break;
-                            }
-
-                            int newDirIndex = _currDir.SubDirectories.IndexOf_(dir => dir.Name == commands[1]);
-                            if (newDirIndex == -1)
-                            {
-                                Console.WriteLine($"\"{commands[1]}\" was not found.");
-                                break;
-                            }
-
-                            _currDir = _currDir.SubDirectories[newDirIndex];
-                            break;
-
-                        default:
-                            Console.WriteLine(commands[0] + " is not recognized. Type \"help\" for more info.");
-                            break;
                     }
                     Console.WriteLine();
                 }

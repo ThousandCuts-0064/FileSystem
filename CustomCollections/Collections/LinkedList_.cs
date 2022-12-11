@@ -248,7 +248,7 @@ namespace CustomCollections
         private LinkedListNode_<T> AddFirstUnchecked(LinkedListNode_<T> node)
         {
             if (Count == 0) Last = node;
-            else First.ChainNext(node); // if Count == 1 First = Last
+            else First.ChainPrevious(node); // if Count == 1 First = Last
 
             First = node;
             Count++;
@@ -276,7 +276,7 @@ namespace CustomCollections
         }
 
         void ICollection<T>.Add(T item) => AddLast(item);
-        bool ICollection<T>.Contains(T item) => ContainsLast(item);
+        bool ICollection<T>.Contains(T item) => ContainsFirst(item);
         bool ICollection<T>.Remove(T item) => RemoveLast(item);
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }

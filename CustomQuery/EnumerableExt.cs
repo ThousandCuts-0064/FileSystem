@@ -29,6 +29,15 @@ namespace CustomQuery
             }
         }
 
+        public static IEnumerable<T> Concat_<T>(this IEnumerable<T> first, IEnumerable<T> second)
+        {
+            if (first is null) throw new ArgumentNullException(nameof(first));
+            if (second is null) throw new ArgumentNullException(nameof(second));
+
+            foreach (var item in first) yield return item;
+            foreach (var item in second) yield return item;
+        }
+
         public static T[] ToArray_<T>(this IEnumerable<T> source) =>
             source is null
             ? throw new ArgumentNullException(nameof(source))
@@ -79,7 +88,7 @@ namespace CustomQuery
             if (childSelector is null) throw new ArgumentNullException(nameof(childSelector));
             if (selector is null) throw new ArgumentNullException(nameof(selector));
 
-            var stack = new Stack<IEnumerator<TSource>>();
+            var stack = new Stack_<IEnumerator<TSource>>();
             var enumerator = source.GetEnumerator();
 
             try

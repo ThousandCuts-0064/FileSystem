@@ -114,35 +114,9 @@ namespace CustomCollections
             Count = countTotal;
         }
 
-        public bool Contains(T item)
-        {
-            if (item == null)
-            {
-                for (int i = 0; i < Count; i++)
-                    if (_array[i] == null) return true;
-                return false;
-            }
+        public bool Contains(T item) => _array.Contains_(item, 0, Count);
 
-            var comparer = EqualityComparer<T>.Default;
-            for (int i = 0; i < Count; i++)
-                if (comparer.Equals(_array[i], item)) return true;
-            return false;
-        }
-
-        public int IndexOf(T item)
-        {
-            if (item == null)
-            {
-                for (int i = 0; i < Count; i++)
-                    if (_array[i] == null) return i;
-                return -1;
-            }
-
-            var comparer = EqualityComparer<T>.Default;
-            for (int i = 0; i < Count; i++)
-                if (comparer.Equals(_array[i], item)) return i;
-            return -1;
-        }
+        public int IndexOf(T item) => _array.IndexOf_(item, 0, Count);
 
         public void CopyTo(T[] array, int arrayIndex)
         {
@@ -150,7 +124,7 @@ namespace CustomCollections
             if (array.Length < Count) throw new ArrayTooShortExcpetion(nameof(array));
             if ((uint)arrayIndex > (uint)(array.Length - Count)) throw new IndexOutOfBoundsException(nameof(arrayIndex));
 
-            _array.CopyTo(array, arrayIndex);
+            Array.Copy(_array, 0, array, arrayIndex, Count);
         }
 
         public bool Remove(T item)
@@ -181,11 +155,7 @@ namespace CustomCollections
                 _array[Count - 1 + i] = default;
         }
 
-        public void Clear()
-        {
-            if (Count == 0) return;
-            Array.Clear(_array, 0, Count);
-        }
+        public void Clear() => Array.Clear(_array, 0, Count);
 
         public IEnumerator<T> GetEnumerator()
         {

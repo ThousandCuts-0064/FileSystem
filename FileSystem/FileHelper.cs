@@ -16,6 +16,8 @@ namespace FileSystemNS
 
         public static FileSystem Open(string input)
         {
+            System.IO.Directory.CreateDirectory(_defaultDirectory);
+
             FileSystem fileSystem = null;
             do
             {
@@ -66,7 +68,7 @@ namespace FileSystemNS
                             break;
                         }
 
-                        string error = FileInfoToBytes(fileInfo, out long totalSize, out ushort sectorSize);
+                        string error = TryParseFileInfo(fileInfo, out long totalSize, out ushort sectorSize);
 
                         if (error is null)
                         {
@@ -118,7 +120,7 @@ namespace FileSystemNS
 
         private static string PadCommand(string command) => command.PadRight_(PAD_COUNT);
 
-        private static string FileInfoToBytes(string[] fileInfo, out long totalSize, out ushort sectorSize)
+        private static string TryParseFileInfo(string[] fileInfo, out long totalSize, out ushort sectorSize)
         {
             totalSize = 0;
             sectorSize = 0;
@@ -132,7 +134,11 @@ namespace FileSystemNS
                 if (found.Contains_(c)) return $"/{c} appears more than once.";
 
                 found[foundIndex++] = c;
-                str = str.Split_(' ', 2)[1].TrimEnd_(' ');
+                var args = str.Split_(' ', 2);
+                if (args.Length == 1)
+                    return $"{str.TrimEnd_(' ')} is invalid. Argument and value must be separated with ' '.";
+
+                str = args[1].TrimEnd_(' ');
                 switch (c)
                 {
                     case 'S':
@@ -173,7 +179,7 @@ namespace FileSystemNS
                 }
             }
 
-            return found.ContainsAll_('T', 'S') ? null : "Not all mandatory parameters are present.";
+            return found.ContainsAll_('T', 'S') ? null : "Not all mandatory arguments are present.";
         }
 
         private static void HelpCommand(string command)

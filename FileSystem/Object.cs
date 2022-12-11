@@ -34,8 +34,67 @@ namespace FileSystemNS
                     ? address
                     : throw new ArgumentException($"{nameof(address)} = {nameof(fileSystem.RootAddress)} is only possible for {nameof(fileSystem.RootDirectory)} ({nameof(parent)} = null)", nameof(address));
             ObjectFlags = objectFlags;
-            Name = ValidatedName(name);
+            Name = ValidatedName(Parent, name);
             ByteCount = byteCount;
+        }
+
+        internal static string ValidatedName(Directory parent, string name) => name is null
+                ? throw new ArgumentNullException(nameof(name))
+                : name == ""
+                    ? throw new CollectionEmptyException(nameof(name))
+                    : name.Length > NAME_MAX_LENGTH
+                        ? throw new ArgumentOutOfRangeException(nameof(name), $"{nameof(name)} cannot exceed {NAME_MAX_LENGTH}")
+                        : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
+                            ? throw new ArgumentException($"{nameof(name)} contained a forbidden symbol", nameof(name))
+                            : ReservedNames.Contains_(name)
+                                ? throw new InvalidOperationException($"The {nameof(name)} \"{name}\" is reserved by the file system.")
+                                : parent is null
+                                    ? name
+                                    : parent.EnumerateObjects().Contains_(obj => obj.Name == name)
+                                        ? throw new ArgumentException($"{nameof(Object)} with this {nameof(name)} already exists.", nameof(name))
+                                        : name;
+
+        internal static FSResult ValidateName(Directory parent, string name) => name is null
+            ? FSResult.NameWasNull
+            : name == ""
+                ? FSResult.NameWasEmpty
+                : name.Length > NAME_MAX_LENGTH
+                    ? FSResult.NameExceededMaxLength
+                    : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
+                        ? FSResult.NameHadForbiddenChar
+                        : ReservedNames.Contains_(name)
+                            ? FSResult.NameIsReserved
+                            : parent is null
+                                ? FSResult.Success
+                                : parent.EnumerateObjects().Contains_(obj => obj.Name == name)
+                                    ? FSResult.NameWasTaken
+                                    : FSResult.Success;
+
+        public FSResult TrySetName(string name)
+        {
+            var result = ValidateName(Parent, name);
+            if (result != FSResult.Success)
+                return result;
+
+            Name = name;
+
+            if (this is Directory dir)
+                RecursiveResetFullName(dir);
+            else
+                _fullName = null;
+            
+            FileSystem.SerializeName(this);
+            return FSResult.Success;
+
+            void RecursiveResetFullName(Directory currDir)
+            {
+                currDir._fullName = null;
+                foreach (var child in currDir.SubDirectories)
+                    RecursiveResetFullName(child);
+
+                foreach (var file in currDir.Files)
+                    file._fullName = null;
+            }
         }
 
         internal abstract void DeserializeBytes(byte[] bytes);
@@ -46,18 +105,8 @@ namespace FileSystemNS
             ByteCount = bytes.Length;
             return bytes;
         }
-
-        private protected static string ValidatedName(string name) => name is null
-                ? throw new ArgumentNullException(nameof(name))
-                : name == ""
-                    ? throw new CollectionEmptyException(nameof(name))
-                    : name.Length > NAME_MAX_LENGTH
-                        ? throw new ArgumentOutOfRangeException(nameof(name), $"{nameof(name)} cannot exceed {NAME_MAX_LENGTH}")
-                        : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
-                            ? throw new ArgumentException($"{nameof(name)} contained a forbidden symbol", nameof(name))
-                            : name;
-
         private protected abstract byte[] OnSerializeBytes();
+
 
         private string GetFullName()
         {
@@ -72,25 +121,6 @@ namespace FileSystemNS
             }
             _fullName = sb.ToString();
             return _fullName;
-        }
-
-        public SetNameResult TrySetName(string name)
-        {
-            if (name is null) return SetNameResult.NameWasNull;
-            if (name == "") return SetNameResult.NameWasEmpty;
-            if (name.Length > NAME_MAX_LENGTH) return SetNameResult.NameExceededMaxLength;
-
-            Name = name;
-            return SetNameResult.Success;
-        }
-
-        public enum SetNameResult : byte
-        {
-            None,
-            Success,
-            NameWasNull,
-            NameWasEmpty,
-            NameExceededMaxLength
         }
     }
 }

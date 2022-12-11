@@ -1,9 +1,18 @@
 ﻿namespace FileSystemNS
 {
-    public enum FSResult
+    public enum FSResult : byte // New values should be added to FSResultExt.cs
     {
         None,
         Success,
-        NameTaken
+
+        NameWasNull,
+        NameWasEmpty,
+        NameExceededMaxLength,
+        NameHadForbiddenChar,
+        NameIsReserved,
+        NameWasTaken,
+        NameWasNotFound,
+
+        FSIsFull
     }
 }

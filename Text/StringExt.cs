@@ -37,7 +37,7 @@ namespace Text
 
             int i = 0;
             while (i < str.Length && str[i] == trim) i++;
-            return str.SubstringAt_(i, str.Length - 1);
+            return i == str.Length ? "" : str.SubstringAt_(i, str.Length - 1);
         }
 
         public static string TrimEnd_(this string str, char trim)
@@ -48,7 +48,7 @@ namespace Text
 
             int i = str.Length - 1;
             while (i >= 0 && str[i] == trim) i--;
-            return str.SubstringAt_(0, i);
+            return i == -1 ? "" : str.SubstringAt_(0, i);
         }
 
         public static string PadLeft_(this string str, int widthTotal) => str.PadLeft_(widthTotal, ' ');

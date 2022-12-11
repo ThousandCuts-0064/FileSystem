@@ -9,16 +9,16 @@ namespace FileSystemNS
     public sealed class Directory : Object
     {
         private readonly IList<Directory> _subDirectories;
-        private readonly IList<Object> _files;
+        private readonly IList<File> _files;
         public IReadOnlyList<Directory> SubDirectories { get; }
-        public IReadOnlyList<Object> Files { get; }
+        public IReadOnlyList<File> Files { get; }
 
         private Directory(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
             : base(fileSystem, parent, address, objectFlags, name, byteCount)
         {
             _subDirectories = new UnorderedList_<Directory>();
             SubDirectories = _subDirectories.ToReadOnly();
-            _files = new UnorderedList_<Object>();
+            _files = new UnorderedList_<File>();
             Files = _files.ToReadOnly();
         }
 
@@ -29,7 +29,7 @@ namespace FileSystemNS
                 null,
                 fileSystem.RootAddress,
                 ObjectFlags.SysFolder,
-                ValidatedName(name),
+                ValidatedName(null, name),
                 0);
 
             fileSystem.SerializeProperties(directory);
@@ -53,15 +53,19 @@ namespace FileSystemNS
             return directory;
         }
 
-        public FSResult CreateSubdirectory(string name, out Directory directory)
+        public IEnumerable<Object> EnumerateObjects() => _subDirectories.Concat_<Object>(_files);
+
+        public FSResult TryCreateSubdirectory(string name, out Directory directory)
         {
             directory = null;
 
-            if (_subDirectories.Contains_(dir => dir.Name == name))
-                return FSResult.NameTaken;
+            var result = ValidateName(this, name);
+            if (result != FSResult.Success) return result;
+
+            if (FileSystem.FreeSectors == 0) return FSResult.FSIsFull;
 
             long address = FileSystem.FindFreeSector();
-            directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, ValidatedName(name), 0);
+            directory = new Directory(FileSystem, this, address, ObjectFlags.Folder, name, 0);
             _subDirectories.Add(directory);
 
             byte[] bytes = new byte[ADDRESS_BYTES];
@@ -74,18 +78,43 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        public bool TryRemoveSubdirectory(string name)
+        public FSResult TryCreateFile(string name, out File file)
         {
-            int index = _subDirectories.IndexOf_(dir => dir.Name == name);
-            if (index == -1) return false;
+            file = null;
+            var result = ValidateName(this, name);
+            if (result != FSResult.Success) return result;
 
-            FileSystem.FreeSectors(_subDirectories[index]);
+            if (FileSystem.FreeSectors == 0) return FSResult.FSIsFull;
+
+            long address = FileSystem.FindFreeSector();
+            file = new File(FileSystem, this, address, ObjectFlags.Folder, name, 0);
+            _files.Add(file);
+
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            address.GetBytes(bytes, 0);
+            FileSystem.AppendInfoBytes(this, bytes);
+            ByteCount += bytes.Length;
+
+            FileSystem.SerializeProperties(file);
+            FileSystem.AllocateSectorAt(address);
+            return FSResult.Success;
+        }
+
+        public FSResult TryRemoveSubdirectory(string name)
+        {
+            var result = ValidateName(null, name);
+            if (result != FSResult.Success) return result;
+
+            int index = _subDirectories.IndexOf_(dir => dir.Name == name);
+            if (index == -1) return FSResult.NameWasNotFound;
+
+            FileSystem.FreeSectorsOf(_subDirectories[index]);
             FileSystem.RemoveObjectFromDirectory(this, index);
             _subDirectories.RemoveAt(index);
             ByteCount -= ADDRESS_BYTES;
             FileSystem.SerializeByteCount(this);
 
-            return true;
+            return FSResult.Success;
         }
 
         internal override void DeserializeBytes(byte[] bytes)
