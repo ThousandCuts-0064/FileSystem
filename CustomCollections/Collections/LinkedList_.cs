@@ -10,9 +10,9 @@ namespace CustomCollections
 {
     public class LinkedList_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
-        public int Count { get; private set; }
         public LinkedListNode_<T> First { get; private set; }
         public LinkedListNode_<T> Last { get; private set; }
+        public int Count { get; private set; }
         bool ICollection<T>.IsReadOnly => false;
 
         public LinkedList_() { }

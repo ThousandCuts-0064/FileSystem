@@ -13,6 +13,11 @@
         NameWasTaken,
         NameWasNotFound,
 
-        FSIsFull
+        FormatNotSupported,
+        FormatNotSpecified,
+        FormatMismatch,
+
+        RootHasNoParent,
+        NotEnoughSpace
     }
 }

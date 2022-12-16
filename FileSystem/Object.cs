@@ -12,13 +12,13 @@ namespace FileSystemNS
     {
         private string _fullName;
 
-        internal FileSystem FileSystem { get; }
-        internal long Address { get; private set; }
         internal long ByteCount { get; private protected set; }
+        internal long Address { get; private set; }
         internal ObjectFlags ObjectFlags { get; private set; }
+        internal FileSystem FileSystem { get; }
 
-        public Directory Parent { get; private set; }
         public string Name { get; private set; }
+        public Directory Parent { get; private set; }
         public string FullName => _fullName ?? GetFullName();
 
         private protected Object(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
@@ -38,7 +38,8 @@ namespace FileSystemNS
             ByteCount = byteCount;
         }
 
-        internal static string ValidatedName(Directory parent, string name) => name is null
+        internal static string ValidatedName(Directory parent, string name) =>
+            name is null
                 ? throw new ArgumentNullException(nameof(name))
                 : name == ""
                     ? throw new CollectionEmptyException(nameof(name))
@@ -54,47 +55,36 @@ namespace FileSystemNS
                                         ? throw new ArgumentException($"{nameof(Object)} with this {nameof(name)} already exists.", nameof(name))
                                         : name;
 
-        internal static FSResult ValidateName(Directory parent, string name) => name is null
-            ? FSResult.NameWasNull
-            : name == ""
-                ? FSResult.NameWasEmpty
-                : name.Length > NAME_MAX_LENGTH
-                    ? FSResult.NameExceededMaxLength
-                    : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
-                        ? FSResult.NameHadForbiddenChar
-                        : ReservedNames.Contains_(name)
-                            ? FSResult.NameIsReserved
-                            : parent is null
+        internal static FSResult ValidateName(Directory parent, string name, bool allowReserved = false) =>
+            name is null
+                ? FSResult.NameWasNull
+                : name == ""
+                    ? FSResult.NameWasEmpty
+                    : name.Length > NAME_MAX_LENGTH
+                        ? FSResult.NameExceededMaxLength
+                        : name.ContainsAny_(NAME_FORBIDDEN_CHARS)
+                            ? FSResult.NameHadForbiddenChar
+                            : allowReserved
                                 ? FSResult.Success
-                                : parent.EnumerateObjects().Contains_(obj => obj.Name == name)
-                                    ? FSResult.NameWasTaken
-                                    : FSResult.Success;
+                                : ReservedNames.Contains_(name)
+                                    ? FSResult.NameIsReserved
+                                    : parent is null
+                                        ? FSResult.Success
+                                        : parent.EnumerateObjects().Contains_(obj => obj.Name == name)
+                                            ? FSResult.NameWasTaken
+                                            : FSResult.Success;
 
-        public FSResult TrySetName(string name)
+        public virtual FSResult TrySetName(string name)
         {
             var result = ValidateName(Parent, name);
             if (result != FSResult.Success)
                 return result;
 
             Name = name;
+            _fullName = null;
 
-            if (this is Directory dir)
-                RecursiveResetFullName(dir);
-            else
-                _fullName = null;
-            
             FileSystem.SerializeName(this);
             return FSResult.Success;
-
-            void RecursiveResetFullName(Directory currDir)
-            {
-                currDir._fullName = null;
-                foreach (var child in currDir.SubDirectories)
-                    RecursiveResetFullName(child);
-
-                foreach (var file in currDir.Files)
-                    file._fullName = null;
-            }
         }
 
         internal abstract void DeserializeBytes(byte[] bytes);
@@ -105,8 +95,18 @@ namespace FileSystemNS
             ByteCount = bytes.Length;
             return bytes;
         }
+
         private protected abstract byte[] OnSerializeBytes();
 
+        private protected void RecursiveResetFullName(Directory currDir)
+        {
+            currDir._fullName = null;
+            foreach (var child in currDir.SubDirectories)
+                RecursiveResetFullName(child);
+
+            foreach (var file in currDir.Files)
+                file._fullName = null;
+        }
 
         private string GetFullName()
         {

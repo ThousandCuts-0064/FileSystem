@@ -1,7 +1,6 @@
 ﻿using System;
 using ExceptionsNS;
 using CustomQuery;
-using static Text.Constants;
 
 namespace Text
 {
@@ -27,6 +26,14 @@ namespace Text
             for (int i = 0; i < str.Length; i++)
                 chars[i] = str[i].ToLowerASCII_();
             return new string(chars);
+        }
+
+        public static int LastIndexOf_(this string str, char c)
+        {
+            for (int i = str.Length - 1; i > 0; i--)
+                if (str[i] == c)
+                    return i;
+            return -1;
         }
 
         public static string TrimStart_(this string str, char trim)
@@ -80,6 +87,7 @@ namespace Text
             return new string(chars);
         }
 
+        public static string Substring_(this string str, int index) => str.Substring_(index, str.Length - index);
         public static string Substring_(this string str, int index, int length)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));
@@ -118,9 +126,9 @@ namespace Text
         public static string[] Split_(this string str, char[] separators, int maxResults)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));
-            if (maxResults <= 0) throw new NumberNotPositiveException(nameof(maxResults));
+            if (str == "" || maxResults == 0) return Array.Empty<string>();
+            if (maxResults < 0) throw new NumberNegativeException(nameof(maxResults));
 
-            if (str == "") return Array.Empty<string>();
             if (maxResults == 1) return new string[] { str };
             if (str.Length == 1) return separators.Contains_(str[0]) ? Array.Empty<string>() : new string[] { str };
 
@@ -154,6 +162,32 @@ namespace Text
 
             strings[stringCount - 1] = str.SubstringAt_(ranges[splitCount - 1], str.Length - 1);
             return strings;
+        }
+
+        public static string Join_(this string[] strings, string value)
+        {
+            if (strings is null) throw new ArgumentNullException(nameof(strings));
+            if (value is null) throw new ArgumentNullException(nameof(value));
+            if (strings.Length == 0) throw new CollectionEmptyException(nameof(strings));
+            if (value.Length == 0) throw new CollectionEmptyException(nameof(value));
+
+            if (strings.Length == 1) return strings[0];
+
+            int totalChars = -value.Length; // 1 extra will be added
+            for (int i = 0; i < strings.Length; i++)
+                totalChars += strings[i].Length + value.Length;
+            char[] chars = new char[totalChars];
+            int chI = 0;
+            for (int i = 0; i < strings[0].Length; i++)
+                chars[chI++] = strings[0][i];
+            for (int i = 1; i < strings.Length; i++)
+            {
+                for (int y = 0; y < value.Length; y++)
+                    chars[chI++] = value[y];
+                for (int y = 0; y < strings[i].Length; y++)
+                    chars[chI++] = strings[i][y];
+            }
+            return new string(chars);
         }
     }
 }

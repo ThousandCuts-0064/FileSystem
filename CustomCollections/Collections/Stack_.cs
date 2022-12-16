@@ -27,10 +27,14 @@ namespace CustomCollections
             if (source is null) throw new ArgumentNullException(nameof(source));
 
             if (source is ICollection<T> collection)
+            {
                 collection.CopyTo(_array, 0);
-            else
-                foreach (var item in source)
-                    Push(item);
+                Count = collection.Count;
+                return;
+            }
+
+            foreach (var item in source)
+                Push(item);
         }
 
         public void Push(T item)

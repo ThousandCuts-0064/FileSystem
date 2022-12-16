@@ -8,12 +8,13 @@ using CustomCollections;
 using CustomQuery;
 using FileSystemNS;
 using Text;
-using static FileSystemNS.Constants;
 
 namespace UI
 {
     public partial class FormMain : Form
     {
+        private const string EXIT = nameof(EXIT);
+        private const string RELOAD = nameof(RELOAD);
         private const string HELP = nameof(HELP);
         private const string HEX = nameof(HEX);
         private const string BIN = nameof(BIN);
@@ -43,9 +44,13 @@ namespace UI
         private Directory _currDir;
         public static FormMain Get { get; private set; }
 
+        [DllImport("USER32.DLL")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
         public FormMain(FileSystem fileSystem)
         {
             InitializeComponent();
+            //WindowState = FormWindowState.Minimized;
             _fileSystem = fileSystem;
             Get = this;
             _currDir = _fileSystem.RootDirectory;
@@ -53,7 +58,7 @@ namespace UI
 
         private void FormMain_Load(object sender, EventArgs e)
         {
-            Task.Run(() =>
+            Task console = Task.Run(() =>
             {
                 while (true)
                 {
@@ -63,6 +68,15 @@ namespace UI
 
                     switch (commands[0].ToUpperASCII_())
                     {
+                        case EXIT:
+                            if (!IsDisposed)
+                                Invoke(new Action(Close));
+                            return;
+
+                        case RELOAD:
+                            Program.Reload = true;
+                            goto case EXIT;
+
                         case HELP:
                         {
                             break;
@@ -128,9 +142,16 @@ namespace UI
 
                         case TREE:
                         {
+                            Directory directory = _currDir;
+
+                            if (commands.Length > 1 &&
+                                _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
+                                break;
+
                             List_<char> chars = new List_<char>();
-                            Console.WriteLine(_currDir.Name);
-                            foreach (var item in _currDir.SubDirectories.SelectTree_(dir => dir.SubDirectories, (dir, depth) =>
+                            Console.WriteLine(directory.Name);
+                            foreach (var item in directory.SubDirectories.SelectTree_(dir => dir.SubDirectories, (dir, depth) =>
                             {
                                 int excess = chars.Count - 1 - depth;
                                 if (excess > 0)
@@ -177,20 +198,31 @@ namespace UI
                         case LS:
                         case DIR:
                         {
-                            if (_currDir.SubDirectories.Count > 0)
+                            Directory directory = _currDir;
+
+                            if (commands.Length > 1 &&
+                                _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
+                                break;
+
+                            if (directory.SubDirectories.Count > 0)
                             {
-                                for (int i = 0; i < _currDir.SubDirectories.Count - 1; i++)
-                                    Console.WriteLine(_currDir.SubDirectories[i].Name);
-                                Console.WriteLine(_currDir.SubDirectories.Last_().Name);
+                                Console.WriteLine("Directories:");
+                                Console.WriteLine();
+                                for (int i = 0; i < directory.SubDirectories.Count - 1; i++)
+                                    Console.WriteLine(directory.SubDirectories[i].Name);
+                                Console.WriteLine(directory.SubDirectories.Last_().Name);
                                 Console.WriteLine();
                             }
 
-                            if (_currDir.Files.Count == 0)
+                            if (directory.Files.Count == 0)
                                 continue;
 
-                            for (int i = 0; i < _currDir.Files.Count - 1; i++)
-                                Console.WriteLine(_currDir.Files[i].Name);
-                            Console.WriteLine(_currDir.Files.Last_().Name);
+                            Console.WriteLine("Files:");
+                            Console.WriteLine();
+                            for (int i = 0; i < directory.Files.Count - 1; i++)
+                                Console.WriteLine(directory.Files[i].Name);
+                            Console.WriteLine(directory.Files.Last_().Name);
 
                             break;
                         }
@@ -204,35 +236,18 @@ namespace UI
                                 break;
                             }
 
-                            if (commands[1] == CUR_DIR)
-                                continue;
-
-                            if (commands[1] == PAR_DIR)
-                            {
-                                if (_currDir.Parent is null)
-                                {
-                                    Console.WriteLine("You are already at root directory");
-                                    break;
-                                }
-
-                                _currDir = _currDir.Parent;
-                                continue;
-                            }
-
-                            var dirCD = _currDir.SubDirectories.FirstOrDefault_(dir => dir.Name == commands[1]);
-                            if (dirCD is null)
-                            {
-                                Console.WriteLine($"\"{commands[1]}\" was not found.");
+                            if (_currDir.TryFindDirectory(commands[1], out Directory directory, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
                                 break;
-                            }
 
-                            _currDir = dirCD;
+                            _currDir = directory;
                             continue;
                         }
 
                         case GC:
                         case CAT:
                         {
+
                             break;
                         }
 
@@ -245,48 +260,22 @@ namespace UI
                                 break;
                             }
 
-                            string[] names = commands[1].Split(' ');
-                            if (names.Length == 1)
+                            string[] args = commands[1].Split(' ');
+                            if (args.Length == 1)
                             {
                                 Console.WriteLine("Please specify a new name.");
                                 break;
                             }
 
-                            FSResult resRen;
+                            if (_currDir.TryFindObject(args[0], out FileSystemNS.Object obj, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
+                                break;
 
-                            if (names[0] == CUR_DIR)
-                                resRen = _currDir.TrySetName(names[1]);
+                            if (obj.TrySetName(args[1])
+                                .IsError(Console.WriteLine, args[1]))
+                                break;
 
-                            else if (names[0] == PAR_DIR)
-                            {
-                                if (_currDir.Parent is null)
-                                {
-                                    Console.WriteLine("You are already at root directory");
-                                    break;
-                                }
-
-                                resRen = _currDir.Parent.TrySetName(names[1]);
-                            }
-                            else
-                            {
-                                var objRen = _currDir.EnumerateObjects().FirstOrDefault_(dir => dir.Name == names[0]);
-                                if (objRen is null)
-                                {
-                                    Console.WriteLine($"\"{names[0]}\" was not found.");
-                                    break;
-                                }
-
-                                if (names[0] == names[1])
-                                    continue;
-
-                                resRen = objRen.TrySetName(names[1]);
-                            }
-
-                            if (resRen == FSResult.Success)
-                                continue;
-
-                            Console.WriteLine(resRen.ToMessage(names[1]));
-                            break;
+                            continue;
                         }
 
                         case CP:
@@ -304,12 +293,10 @@ namespace UI
                                 break;
                             }
 
-                            FSResult resMD = _currDir.TryCreateSubdirectory(commands[1], out _);
-                            if (resMD != FSResult.Success)
-                            {
-                                Console.WriteLine(resMD.ToMessage(commands[1]));
+                            if (_currDir.TryCreateDirectory(commands[1], out _, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
                                 break;
-                            }
+
                             continue;
                         }
 
@@ -322,12 +309,10 @@ namespace UI
                                 break;
                             }
 
-                            FSResult resMF = _currDir.TryCreateFile(commands[1], out _);
-                            if (resMF != FSResult.Success)
-                            {
-                                Console.WriteLine(resMF.ToMessage(commands[1]));
+                            if (_currDir.TryCreateFile(commands[1], out _, out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
                                 break;
-                            }
+
                             continue;
                         }
 
@@ -340,42 +325,10 @@ namespace UI
                                 break;
                             }
 
-                            FSResult resRD;
-
-                            if (commands[1] == CUR_DIR)
-                            {
-                                if (_currDir.Parent is null)
-                                {
-                                    Console.WriteLine("Cannot remove the root directory");
-                                    break;
-                                }
-
-                                resRD = _currDir.Parent.TryRemoveSubdirectory(_currDir.Name);
-                            }
-                            else if (commands[1] == PAR_DIR)
-                            {
-                                if (_currDir.Parent is null)
-                                {
-                                    Console.WriteLine("The root directory has no parent");
-                                    break;
-                                }
-
-                                if (_currDir.Parent.Parent is null)
-                                {
-                                    Console.WriteLine("Cannot remove the root directory");
-                                    break;
-                                }
-
-                                resRD = _currDir.Parent.Parent.TryRemoveSubdirectory(_currDir.Parent.Name);
-                            }
-                            else
-                                resRD = _currDir.TryRemoveSubdirectory(commands[1]);
-
-                            if (resRD != FSResult.Success)
-                            {
-                                Console.WriteLine(resRD.ToMessage(commands[1]));
+                            if (_currDir.TryRemoveDirectory(commands[1], out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
                                 break;
-                            }
+
                             continue;
                         }
 
@@ -388,13 +341,10 @@ namespace UI
                                 break;
                             }
 
-                            FSResult resRF = _currDir.TryRemoveFile(commands[1]);
-
-                            if (resRF != FSResult.Success)
-                            {
-                                Console.WriteLine(resRF.ToMessage(commands[1]));
+                            if (_currDir.TryRemoveFile(commands[1], out string faultedName)
+                                .IsError(Console.WriteLine, faultedName))
                                 break;
-                            }
+
                             continue;
                         }
 

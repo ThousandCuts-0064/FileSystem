@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using CustomCollections;
 using ExceptionsNS;
@@ -108,8 +109,7 @@ namespace CustomQuery
                         enumerator.Dispose();
                         enumerator = stack.Pop();
                     }
-                    else
-                        yield break;
+                    else yield break;
                 }
             }
             finally
@@ -130,7 +130,8 @@ namespace CustomQuery
 
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
-                if (comparer.Equals(item, element)) return true;
+                if (comparer.Equals(item, element)) 
+                    return true;
             return false;
         }
 
@@ -140,7 +141,8 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) return true;
+                if (predicate(item)) 
+                    return true;
             return false;
         }
 
@@ -153,7 +155,8 @@ namespace CustomQuery
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
                 foreach (var element in elements)
-                    if (comparer.Equals(item, element)) return true;
+                    if (comparer.Equals(item, element)) 
+                        return true;
             return false;
         }
 
@@ -171,7 +174,8 @@ namespace CustomQuery
                 {
                     if (comparer.Equals(item, unorderedBuffer.Buffer.Array[i]))
                         unorderedBuffer.RemoveAt(i);
-                    if (unorderedBuffer.Count == 0) return true;
+                    if (unorderedBuffer.Count == 0) 
+                        return true;
                 }
 
             return false;
@@ -183,7 +187,19 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) return item;
+                if (predicate(item)) 
+                    return item;
+
+            throw new InvalidOperationException("No matches found");
+        }
+
+        public static T FirstOfType_<T>(this IEnumerable source)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+
+            foreach (var item in source)
+                if (item is T casted)
+                    return casted;
 
             throw new InvalidOperationException("No matches found");
         }
@@ -194,7 +210,8 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) return item;
+                if (predicate(item)) 
+                    return item;
 
             return default;
         }
@@ -203,17 +220,17 @@ namespace CustomQuery
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
 
-            int index = -1;
             int i = 0;
 
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
             {
-                if (comparer.Equals(item, element)) index = i;
+                if (comparer.Equals(item, element))
+                    return i;
                 i++;
             }
 
-            return index;
+            return -1;
         }
 
         public static int IndexOf_<T>(this IEnumerable<T> source, Predicate<T> predicate)
@@ -221,36 +238,36 @@ namespace CustomQuery
             if (source is null) throw new ArgumentNullException(nameof(source));
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
-            int index = -1;
             int i = 0;
 
             foreach (var item in source)
             {
-                if (predicate(item)) index = i;
+                if (predicate(item))
+                    return i;
                 i++;
             }
 
-            return index;
+            return -1;
         }
 
-        public static int IndexOfAny_<T>(this IEnumerable<T> source, params T[] elements) => IndexOfAny_(source, elements);
+        public static int IndexOfAny_<T>(this IEnumerable<T> source, params T[] elements) => IndexOfAny_(source, (IEnumerable<T>)elements);
         public static int IndexOfAny_<T>(this IEnumerable<T> source, IEnumerable<T> elements)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
             if (elements is null) throw new ArgumentNullException(nameof(elements));
 
-            int index = -1;
             int i = 0;
 
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
             {
                 foreach (var element in elements)
-                    if (comparer.Equals(item, element)) index = i;
+                    if (comparer.Equals(item, element)) 
+                        return i;
                 i++;
             }
 
-            return index;
+            return -1;
         }
 
         private readonly ref struct Buffer<T>

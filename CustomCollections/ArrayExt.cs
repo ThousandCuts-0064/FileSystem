@@ -8,6 +8,7 @@ namespace CustomCollections
 {
     public static class ArrayExt
     {
+        public static bool Contains_<T>(this T[] arr, T item) => Contains_(arr, item, 0, arr.Length);
         public static bool Contains_<T>(this T[] arr, T item, int index, int count)
         {
             count += index;

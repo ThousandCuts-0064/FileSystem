@@ -16,7 +16,7 @@ namespace CustomCollections
             set
             {
                 if (value < Count) throw new ArgumentOutOfRangeException(nameof(Capacity), $"{nameof(Capacity)} cannot be less than {nameof(Count)}.");
-                if (value == Count) return;
+                if (value == Capacity) return;
 
                 T[] newArray = new T[value];
                 _array.CopyTo(newArray, 0);
@@ -56,10 +56,32 @@ namespace CustomCollections
             if (source is null) throw new ArgumentNullException(nameof(source));
 
             if (source is ICollection<T> collection)
+            {
                 collection.CopyTo(_array, 0);
-            else
-                foreach (var item in source)
-                    Add(item);
+                Count = collection.Count;
+                return;
+            }
+
+            foreach (var item in source)
+                Add(item);
+        }
+
+        public void CycleRight()
+        {
+            if (Count < 2) return;
+
+            T item = _array[Count - 1];
+            Array.Copy(_array, 0, _array, 1, Count - 1);
+            _array[0] = item;
+        }
+
+        public void CycleLeft()
+        {
+            if (Count < 2) return;
+
+            T item = _array[0];
+            Array.Copy(_array, 1, _array, 0, Count - 1);
+            _array[Count - 1] = item;
         }
 
         public void Add(T item)
@@ -78,10 +100,12 @@ namespace CustomCollections
                 if (countTotal < Capacity) ExpandTo(countTotal);
                 if (collection == this) Array.Copy(_array, 0, _array, Count, Count);
                 else collection.CopyTo(_array, Count);
+                Count += collection.Count;
+                return;
             }
-            else
-                foreach (var item in source)
-                    Add(item);
+
+            foreach (var item in source)
+                Add(item);
         }
 
         public bool Contains(T item) => _array.Contains_(item, 0, Count);
@@ -130,7 +154,6 @@ namespace CustomCollections
             if ((uint)newCapacity > ARRAY_MAX_LENGTH) newCapacity = ARRAY_MAX_LENGTH;
             Capacity = newCapacity;
         }
-
 
         void IList<T>.Insert(int index, T item)
         {

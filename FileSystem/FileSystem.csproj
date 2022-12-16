@@ -52,9 +52,11 @@
     <Compile Include="ByteExt.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Directory.cs" />
+    <Compile Include="Enums\FileFormat.cs" />
     <Compile Include="Enums\FS.cs" />
     <Compile Include="Enums\FSResult.cs" />
     <Compile Include="File.cs" />
+    <Compile Include="FileFormatExt.cs" />
     <Compile Include="FileHelper.cs" />
     <Compile Include="FileStreamExt.cs" />
     <Compile Include="FileSystem.cs" />

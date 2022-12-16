@@ -18,18 +18,18 @@ namespace FileSystemNS
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
 
-        internal int FreeSectors => _bitMap.UnsetBits;
         internal long SectorCount { get; }
+        internal long RootAddress { get; }
+        internal long AddressNextSectorBytesIndex { get; }
         internal ushort SectorSize { get; }
         internal ushort NextSectorAddressIndex { get; }
         internal ushort SectorInfoSize { get; }
         internal ushort FirstSectorInfoSize { get; }
-        internal long RootAddress { get; }
-        internal long AddressNextSectorBytesIndex { get; }
         internal long BitmapBytes => _bitMap.ByteCount;
+        internal int FreeSectors => _bitMap.UnsetBits;
 
-        public long TotalSize { get; }
         public Directory RootDirectory { get; private set; }
+        public long TotalSize { get; }
 
         // Partial initialization. RootDirectory required.
         private FileSystem(FileStream fileStream, long totalSize, ushort sectorSize, long sectorCount, BitArray_ bitmap)
@@ -37,8 +37,8 @@ namespace FileSystemNS
             _stream = fileStream;
             TotalSize = totalSize;
             SectorSize = sectorSize;
-            NextSectorAddressIndex = (ushort)(SectorInfoSize - ADDRESS_BYTES);
             SectorInfoSize = (ushort)(SectorSize - ADDRESS_BYTES);
+            NextSectorAddressIndex = (ushort)(SectorInfoSize - ADDRESS_BYTES);
             FirstSectorInfoSize = (ushort)(SectorInfoSize - 1 - NAME_BYTES - LONG_BYTES);
             SectorCount = sectorCount;
             _bitMap = bitmap;
@@ -349,7 +349,97 @@ namespace FileSystemNS
             AllocateSectorAt(freeAddress);
         }
 
+        internal void CreateSubdirectory(Directory parent, long subdirAddress) // TODO: Allocate new sector when needed
+        {
+            SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
+            byte[] bytes = new byte[ADDRESS_BYTES];
+
+            long dirSector = EnumerateSectors(
+                parent.Address,
+                FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES, out long dirIndex),
+                true)
+                    .Last_();
+            long dirWriteAddress = dirSector + dirIndex;
+            long firstFileIndex = dirIndex + ADDRESS_BYTES;
+            long fileSector = EnumerateSectors(
+                dirSector,
+                FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES, out long fileIndex),
+                true)
+                    .Last_();
+            long fileWriteAddress = fileSector + fileIndex;
+
+            _stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
+            _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+
+            subdirAddress.GetBytes(bytes, 0);
+            _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
+        }
+
+        internal void CreatFile(Directory parent, long fileAddress)
+        {
+            SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
+            byte[] bytes = new byte[ADDRESS_BYTES];
+
+            long fileSector = EnumerateSectors(
+                parent.Address,
+                FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex),
+                true)
+                    .Last_();
+            long fileWriteAddress = fileSector + fileIndex;
+
+            fileAddress.GetBytes(bytes, 0);
+            _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+        }
+
+        internal void RemoveSubdirectory(Directory parent, int subdirIndex)
+        {
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            int dirSectorIndex = FullSectorsAndByteIndex(subdirIndex * ADDRESS_BYTES, out long dirShortIndex);
+            long dirSectorAddress = EnumerateSectors(parent.Address, dirSectorIndex, true).Last_();
+            long dirWriteAddress = dirSectorAddress + dirShortIndex;
+            long lastSector = EnumerateSectors(
+                dirSectorAddress,
+                FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastDirIndex) - dirSectorIndex,
+                true)
+                    .Last_();
+            long dirReadAddress = lastSector + lastDirIndex;
+            long fileSpaceIndex = lastDirIndex + ADDRESS_BYTES;
+            long lastFileSectorAddress = EnumerateSectors(
+                lastSector,
+                FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastFileIndex),
+                true)
+                    .Last_();
+
+            _stream.ReadAt(dirReadAddress, bytes, 0, bytes.Length);
+            _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
+            _stream.ReadAt(lastFileSectorAddress + lastFileIndex, bytes, 0, bytes.Length);
+            _stream.WriteAt(dirReadAddress, bytes, 0, bytes.Length);
+
+            if (lastFileIndex % SectorSize == 0) FreeSectorAt(lastFileIndex);
+        }
+
+        internal void RemoveFile(Directory parent, int fileIndex)
+        {
+            byte[] bytes = new byte[ADDRESS_BYTES];
+            int fileSectorIndex = FullSectorsAndByteIndex((parent.SubDirectories.Count + fileIndex) * ADDRESS_BYTES, out long fileShortIndex);
+            long fileWriteSector = EnumerateSectors(parent.Address, fileSectorIndex, true).Last_();
+            long fileWriteIndex = fileWriteSector + fileShortIndex;
+            long fileSpaceIndex = fileSectorIndex + ADDRESS_BYTES;
+            long fileReadAddress = EnumerateSectors(
+                fileWriteSector,
+                FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex),
+                true)
+                    .Last_() + fileReadIndex;
+
+            _stream.ReadAt(fileReadAddress, bytes, 0, bytes.Length);
+            _stream.WriteAt(fileWriteSector + fileWriteIndex, bytes, 0, bytes.Length);
+
+            if (fileReadAddress % SectorSize == 0) FreeSectorAt(fileReadAddress);
+        }
+
+        [Obsolete("Worked when dirs and files were mixed", true)]
         internal void RemoveObjectFromDirectory(Directory dir, int objIndex) => RemoveObjectFromAt(dir.Address, dir.ByteCount, objIndex);
+        [Obsolete("Worked when dirs and files were mixed", true)]
         internal void RemoveObjectFromAt(long address, long byteCount, int objIndex)
         {
             byte[] bytes = new byte[ADDRESS_BYTES];
@@ -415,7 +505,7 @@ namespace FileSystemNS
                 FreeSectorAt(address);
         }
 
-        private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
+        internal int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
             byteIndex = INFO_BYTES_INDEX + byteCount;
             return byteCount < FirstSectorInfoSize
@@ -423,9 +513,17 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
         }
 
-        private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldAddressAsFirst)
+        internal int FullSectorsAndByteIndex(long startIndex, long firstSectorSpace, long byteCount, out long byteIndex)
         {
-            if (yieldAddressAsFirst) yield return address;
+            byteIndex = startIndex + byteCount;
+            return byteCount < firstSectorSpace
+                ? 0
+                : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
+        }
+
+        private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldGivenAddress)
+        {
+            if (yieldGivenAddress) yield return address;
             if (sectorCount == 0) yield break;
 
             byte[] bytes = new byte[ADDRESS_BYTES];

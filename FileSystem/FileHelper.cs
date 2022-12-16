@@ -26,7 +26,16 @@ namespace FileSystemNS
                 {
                     Console.WriteLine("Chose a file or type \"help\" for more info.");
                     Console.WriteLine();
-                    commands = Console.ReadLine().TrimEnd_(' ').Split_(' ', 2);
+                    char first = Console.ReadKey().KeyChar;
+                    string str;
+                    if (first == '1')
+                    {
+                        str = "create f /t 10kb /s 512";
+                        Console.WriteLine();
+                    }
+                    else
+                        str = first + Console.ReadLine();
+                    commands = str.TrimEnd_(' ').Split_(' ', 2);
                     Console.WriteLine();
                 }
                 else
@@ -86,7 +95,7 @@ namespace FileSystemNS
                             Console.WriteLine(PadCommand(HELP) + "Shows commands' discription.");
                             Console.WriteLine(PadCommand(OPEN) + "Loads an existing file.");
                         }
-                        else HelpCommand(commands[1]);
+                        else HelpCommand(commands[1].ToUpperASCII_());
                         break;
 
                     case OPEN:
@@ -144,7 +153,6 @@ namespace FileSystemNS
                     case 'S':
                         if (!ushort.TryParse(str, out sectorSize))
                             return "Invalid sector size.";
-
                         break;
 
                     case 'T':
@@ -187,11 +195,12 @@ namespace FileSystemNS
             switch (command)
             {
                 case CREATE:
-                    Console.WriteLine(CREATE + " name </T size <KB | MB | GB>> </S>");
+                    Console.WriteLine(CREATE + " <name> </T size <KB | MB | GB>> </S size>");
                     Console.WriteLine();
+                    Console.WriteLine(PadCommand("name") + "Name of the file");
                     Console.WriteLine("/T size <KB | MB | GB>");
                     Console.WriteLine(new string(' ', PAD_COUNT) + "Total size of the file in KB | MB | GB.");
-                    Console.WriteLine(PadCommand("/S") + "Size of a single sector in bytes.");
+                    Console.WriteLine(PadCommand("/S size") + "Size of a single sector in bytes.");
                     break;
 
                 case HELP:
