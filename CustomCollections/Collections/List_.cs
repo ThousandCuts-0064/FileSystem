@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ExceptionsNS;
 using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay(COLLECTION_DISP)]
     public class List_<T> : IList<T>, IReadOnlyList<T>
     {
         private T[] _array;
@@ -23,8 +25,10 @@ namespace CustomCollections
                 _array = newArray;
             }
         }
+
         public int Count { get; private set; }
 
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<T>.IsReadOnly => false;
 
         public T this[int index]

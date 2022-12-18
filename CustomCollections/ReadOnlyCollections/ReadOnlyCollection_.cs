@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ExceptionsNS;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay("{_collection}")]
     public class ReadOnlyCollection_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
         private readonly ICollection<T> _collection;
         public int Count => _collection.Count;
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<T>.IsReadOnly => true;
 
         public ReadOnlyCollection_(ICollection<T> collection) => 

@@ -251,7 +251,7 @@ namespace FileSystemNS
             directory = new Directory(FileSystem, this, address, ObjectFlags.Directory, name, 0);
             _subDirectories.Add(directory);
             ByteCount += ADDRESS_BYTES;
-            _subDirectories.CycleLeft();
+            _files.CycleLeft();
 
             FileSystem.SerializeProperties(directory);
             FileSystem.AllocateSectorAt(address);
@@ -368,6 +368,14 @@ namespace FileSystemNS
             return result == FSResult.Success
                 ? preLastDir.TryRemoveFile(lastName)
                 : result;
+        }
+
+        public override void Clear()
+        {
+            foreach (var dir in _subDirectories)
+                FileSystem.FreeSectorsOf(dir);
+            _subDirectories.Clear();
+            base.Clear();
         }
 
         internal override void DeserializeBytes(byte[] bytes)

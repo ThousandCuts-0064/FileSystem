@@ -1,18 +1,20 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Diagnostics;
 using ExceptionsNS;
+using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay(COLLECTION_DISP)]
     public class LinkedList_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
         public LinkedListNode_<T> First { get; private set; }
         public LinkedListNode_<T> Last { get; private set; }
         public int Count { get; private set; }
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<T>.IsReadOnly => false;
 
         public LinkedList_() { }

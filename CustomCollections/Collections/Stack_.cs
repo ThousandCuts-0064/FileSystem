@@ -1,16 +1,20 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ExceptionsNS;
 using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay(COLLECTION_DISP)]
     public class Stack_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
         private T[] _array;
 
         public int Count { get; private set; }
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<T>.IsReadOnly => false;
 
         public Stack_() => _array = new T[DEFAULT_SIZE];

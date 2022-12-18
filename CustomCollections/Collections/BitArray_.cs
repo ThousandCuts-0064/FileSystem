@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Core;
 using ExceptionsNS;
 using static Core.Constants;
+using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay(COLLECTION_DISP)]
     public class BitArray_ : IList<bool>, IReadOnlyList<bool>
     {
         private readonly byte[] _bytes;
@@ -14,6 +17,8 @@ namespace CustomCollections
         public int SetBits { get; private set; }
         public int UnsetBits => Count - SetBits;
         public int ByteCount => _bytes.Length;
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<bool>.IsReadOnly => false;
 
         public bool this[int index]

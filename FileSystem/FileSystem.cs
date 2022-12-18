@@ -363,7 +363,7 @@ namespace FileSystemNS
             long firstFileIndex = dirIndex + ADDRESS_BYTES;
             long fileSector = EnumerateSectors(
                 dirSector,
-                FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES, out long fileIndex),
+                FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileIndex),
                 true)
                     .Last_();
             long fileWriteAddress = fileSector + fileIndex;
@@ -423,16 +423,15 @@ namespace FileSystemNS
             byte[] bytes = new byte[ADDRESS_BYTES];
             int fileSectorIndex = FullSectorsAndByteIndex((parent.SubDirectories.Count + fileIndex) * ADDRESS_BYTES, out long fileShortIndex);
             long fileWriteSector = EnumerateSectors(parent.Address, fileSectorIndex, true).Last_();
-            long fileWriteIndex = fileWriteSector + fileShortIndex;
-            long fileSpaceIndex = fileSectorIndex + ADDRESS_BYTES;
+            long fileWriteAddress = fileWriteSector + fileShortIndex;
             long fileReadAddress = EnumerateSectors(
                 fileWriteSector,
-                FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex),
+                FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex),
                 true)
                     .Last_() + fileReadIndex;
 
             _stream.ReadAt(fileReadAddress, bytes, 0, bytes.Length);
-            _stream.WriteAt(fileWriteSector + fileWriteIndex, bytes, 0, bytes.Length);
+            _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
 
             if (fileReadAddress % SectorSize == 0) FreeSectorAt(fileReadAddress);
         }

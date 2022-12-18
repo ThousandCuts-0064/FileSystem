@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using CustomCollections;
 using CustomQuery;
 using ExceptionsNS;
@@ -8,6 +9,7 @@ using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
+    [DebuggerDisplay("{FullName}")]
     public abstract class Object
     {
         private string _fullName;
@@ -85,6 +87,12 @@ namespace FileSystemNS
 
             FileSystem.SerializeName(this);
             return FSResult.Success;
+        }
+
+        public virtual void Clear()
+        {
+            ByteCount = 0;
+            FileSystem.SerializeByteCount(this);
         }
 
         internal abstract void DeserializeBytes(byte[] bytes);

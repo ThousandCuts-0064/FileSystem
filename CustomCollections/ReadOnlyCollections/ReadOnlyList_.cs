@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ExceptionsNS;
 
 namespace CustomCollections
 {
+    [DebuggerDisplay("{_list}")]
     internal class ReadOnlyList_<T> : IList<T>, IReadOnlyList<T>
     {
         private readonly IList<T> _list;
         public int Count => _list.Count;
-        public bool IsReadOnly { get; }
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        bool ICollection<T>.IsReadOnly => true;
 
         public T this[int index] => _list[index];
         T IList<T>.this[int index] 

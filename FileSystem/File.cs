@@ -26,7 +26,7 @@ namespace FileSystemNS
                 : throw new InvalidCastException("Format was invalid.");
         }
 
-        internal static FSResult ValidateFormat(string name) => 
+        internal static FSResult ValidateFormat(string name) =>
             name.LastIndexOf_('.').Get(out int index) == -1 || index == name.Length - 1
                 ? FSResult.FormatNotSpecified
                 : FileFormatExt.FormatsAsLower.Contains_(name.Substring_(index + 1))
@@ -36,7 +36,7 @@ namespace FileSystemNS
         public void Save() => FileSystem.SerializeAllInfoBytes(this);
         public void Load() => FileSystem.DeserializeAllInfoBytes(this);
 
-        public override FSResult TrySetName(string name) => 
+        public override FSResult TrySetName(string name) =>
             base.TrySetName(AttachFormat(name));
 
         public FSResult TrySetObject(object obj)
@@ -48,22 +48,22 @@ namespace FileSystemNS
                 case FileFormat.None: throw new InvalidOperationException($"{nameof(Format)} must be set.");
 
                 case FileFormat.Txt:
-                    if (!(obj is string)) return FSResult.FormatMismatch;
-                    Object = obj;
-                    return FSResult.Success;
+                    if (obj is string) break;
+                    return FSResult.FormatMismatch;
 
                 case FileFormat.Bmp:
-                    if (!(obj is Bitmap)) return FSResult.FormatMismatch;
-                    Object = obj;
-                    return FSResult.Success;
+                    if (obj is Bitmap) break;
+                    return FSResult.FormatMismatch;
 
                 case FileFormat.Wav:
-                    if (!(obj is SoundPlayer)) return FSResult.FormatMismatch;
-                    Object = obj;
-                    return FSResult.Success;
+                    if (obj is SoundPlayer) break;
+                    return FSResult.FormatMismatch;
 
                 default: throw new NotSupportedException();
             }
+
+            Object = obj;
+            return FSResult.Success;
         }
 
         internal object GetObjectByByteCopy()
@@ -78,8 +78,18 @@ namespace FileSystemNS
 
         internal override void DeserializeBytes(byte[] bytes)
         {
+            if (bytes.Length == 0)
+            {
+                Object = null;
+                return;
+            }
+
             using (var stream = new MemoryStream())
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Position = 0;
                 Object = _formatter.Deserialize(stream);
+            }
         }
 
         private protected override byte[] OnSerializeBytes()
