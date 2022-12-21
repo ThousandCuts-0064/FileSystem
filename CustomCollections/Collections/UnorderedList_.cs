@@ -143,7 +143,11 @@ namespace CustomCollections
             _array[Count] = default; // Set the previously last element to default
         }
 
-        public void Clear() => Array.Clear(_array, 0, Count);
+        public void Clear()
+        {
+            Array.Clear(_array, 0, Count);
+            Count = 0;
+        }
 
         public IEnumerator<T> GetEnumerator()
         {

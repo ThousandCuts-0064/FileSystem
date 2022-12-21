@@ -21,6 +21,7 @@ namespace UI
             {
                 Reload = false;
                 FileSystem fileSystem = FileHelper.Open(args.Join_(" "));
+                Console.Title = fileSystem.RootDirectory.Name;
                 Application.Run(new FormMain(fileSystem));
                 fileSystem.Close();
             } while (Reload);

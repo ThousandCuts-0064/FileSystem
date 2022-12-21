@@ -49,21 +49,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ByteExt.cs" />
+    <Compile Include="Extensions\ByteExt.cs" />
     <Compile Include="Constants.cs" />
-    <Compile Include="Directory.cs" />
+    <Compile Include="Objects\Directory.cs" />
     <Compile Include="Enums\FileFormat.cs" />
     <Compile Include="Enums\FS.cs" />
     <Compile Include="Enums\FSResult.cs" />
-    <Compile Include="File.cs" />
-    <Compile Include="FileFormatExt.cs" />
+    <Compile Include="Objects\File.cs" />
+    <Compile Include="Extensions\FileFormatExt.cs" />
     <Compile Include="FileHelper.cs" />
-    <Compile Include="FileStreamExt.cs" />
+    <Compile Include="Extensions\FileStreamExt.cs" />
     <Compile Include="FileSystem.cs" />
     <Compile Include="Enums\BootByte.cs" />
-    <Compile Include="FSResultExt.cs" />
-    <Compile Include="Object.cs" />
+    <Compile Include="Extensions\FSResultExt.cs" />
+    <Compile Include="Objects\Object.cs" />
     <Compile Include="Enums\ObjectFlags.cs" />
+    <Compile Include="Polynomial.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

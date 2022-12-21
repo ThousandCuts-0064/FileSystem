@@ -4,6 +4,7 @@ using CustomQuery;
 using CustomCollections;
 using static FileSystemNS.Constants;
 using Core;
+using Text;
 
 namespace FileSystemNS
 {
@@ -60,7 +61,7 @@ namespace FileSystemNS
         public override FSResult TrySetName(string name)
         {
             var result = base.TrySetName(name);
-            if (result == FSResult.Success) 
+            if (result == FSResult.Success)
                 RecursiveResetFullName(this);
             return result;
         }
@@ -103,8 +104,8 @@ namespace FileSystemNS
         public FSResult TryFindDirectory(string path, out Directory directory, out string faultedName)
         {
             var result = TryFollowPath(path, out directory, out string lastName, out faultedName);
-            return result == FSResult.Success 
-                ? directory.TryFindDirectory(lastName, out directory) 
+            return result == FSResult.Success
+                ? directory.TryFindDirectory(lastName, out directory)
                 : result;
         }
 
@@ -136,6 +137,12 @@ namespace FileSystemNS
             var result = ValidateName(null, name, true);
             if (result != FSResult.Success)
                 return result;
+
+            if (name == FileSystem.RootDirectory.Name)
+            {
+                obj = FileSystem.RootDirectory;
+                return FSResult.Success;
+            }
 
             if (name == CUR_DIR)
             {
@@ -299,20 +306,30 @@ namespace FileSystemNS
                 : result;
         }
 
-        public FSResult TryCopyFile(File file)
+        public FSResult TryCopyFile(File file, string newName = null)
         {
+            newName = newName is null
+                ? GetNameWithCopyCount(file.Name)
+                : newName + '.' + file.Format.ToLower();
+            var result = ValidateName(this, newName);
+            if (result != FSResult.Success)
+                return result;
+
             file.Load();
-            if (FileSystem.FreeSectors < 
-                1 + Math_.DivCeiling(file.ByteCount - FileSystem.FirstSectorInfoSize, FileSystem.SectorInfoSize)) 
+            if (FileSystem.FreeSectors <
+                    1 + Math_.DivCeiling(file.ByteCount - FileSystem.FirstSectorInfoSize, FileSystem.SectorInfoSize))
                 return FSResult.NotEnoughSpace;
 
-            var result = TryCreateFile(file.Name, out File newFile);
+            result = TryCreateFile(newName, out File newFile);
             if (result != FSResult.Success)
                 return result;
 
-            result = newFile.TrySetObject(file.GetObjectByByteCopy());
+            result = newFile.TrySetObject(file.GetObjectDeepCopyOrNull());
             if (result != FSResult.Success)
+            {
+                TryRemoveFile(newFile.Name);
                 return result;
+            }
 
             newFile.Save();
 
@@ -372,10 +389,9 @@ namespace FileSystemNS
 
         public override void Clear()
         {
-            foreach (var dir in _subDirectories)
-                FileSystem.FreeSectorsOf(dir);
-            _subDirectories.Clear();
             base.Clear();
+            _subDirectories.Clear();
+            _files.Clear();
         }
 
         internal override void DeserializeBytes(byte[] bytes)
@@ -428,6 +444,29 @@ namespace FileSystemNS
             for (int i = 0; i < _subDirectories.Count; i++)
                 _subDirectories[i].Address.GetBytes(bytes, i * ADDRESS_BYTES);
             return bytes;
+        }
+
+        private string GetNameWithCopyCount(string name)
+        {
+            ulong count = 0;
+            int dotIndex = name.LastIndexOf_('.');
+            string format = name.Substring(dotIndex + 1);
+            bool exits = _files.Contains_(f => f.Name == name);
+            for (int i = 0; i < _files.Count; i++)
+            {
+                if (_files[i].Format.ToLower() != format)
+                    continue;
+
+                string fName = _files[i].Name;
+                int closeBracket = fName.Length - format.Length - 2;
+                if (fName[dotIndex] == '(' &&
+                    fName[closeBracket] == ')' &&
+                    ulong.TryParse(fName.SubstringAt_(dotIndex + 1, closeBracket - 1), out ulong currCount) &&
+                    currCount > count)
+                    count = currCount;
+            }
+
+            return name.Substring_(0, dotIndex) + (exits ? $"({count + 1})" : "") + '.' + format;
         }
     }
 }

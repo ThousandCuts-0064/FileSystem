@@ -130,7 +130,7 @@ namespace CustomQuery
 
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
-                if (comparer.Equals(item, element)) 
+                if (comparer.Equals(item, element))
                     return true;
             return false;
         }
@@ -141,7 +141,7 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) 
+                if (predicate(item))
                     return true;
             return false;
         }
@@ -155,7 +155,7 @@ namespace CustomQuery
             var comparer = EqualityComparer<T>.Default;
             foreach (var item in source)
                 foreach (var element in elements)
-                    if (comparer.Equals(item, element)) 
+                    if (comparer.Equals(item, element))
                         return true;
             return false;
         }
@@ -174,7 +174,7 @@ namespace CustomQuery
                 {
                     if (comparer.Equals(item, unorderedBuffer.Buffer.Array[i]))
                         unorderedBuffer.RemoveAt(i);
-                    if (unorderedBuffer.Count == 0) 
+                    if (unorderedBuffer.Count == 0)
                         return true;
                 }
 
@@ -187,7 +187,7 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) 
+                if (predicate(item))
                     return item;
 
             throw new InvalidOperationException("No matches found");
@@ -210,7 +210,7 @@ namespace CustomQuery
             if (predicate is null) throw new ArgumentNullException(nameof(predicate));
 
             foreach (var item in source)
-                if (predicate(item)) 
+                if (predicate(item))
                     return item;
 
             return default;
@@ -262,12 +262,25 @@ namespace CustomQuery
             foreach (var item in source)
             {
                 foreach (var element in elements)
-                    if (comparer.Equals(item, element)) 
+                    if (comparer.Equals(item, element))
                         return i;
                 i++;
             }
 
             return -1;
+        }
+
+        public static int Count_<T>(this IEnumerable<T> source, T element)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            int i = 0;
+
+            var comparer = EqualityComparer<T>.Default;
+            foreach (var item in source)
+                if (comparer.Equals(item, element))
+                    i++;
+
+            return i;
         }
 
         private readonly ref struct Buffer<T>

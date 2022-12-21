@@ -35,6 +35,7 @@
         public StringBuilder_ Clear()
         {
             _strings.Clear();
+            CharCount = 0;
             return this;
         }
     }

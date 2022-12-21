@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Core;
 using CustomCollections;
 using CustomQuery;
+using ExceptionsNS;
 using FileSystemNS;
 using Text;
+using static FileSystemNS.Constants;
 
 namespace UI
 {
@@ -21,12 +23,16 @@ namespace UI
         private const string BIN = nameof(BIN);
         private const string TREE = nameof(TREE);
 
+        private const string R = nameof(R);
+        private const string E = nameof(E);
+
         private const string DIR = nameof(DIR);
         private const string CHDIR = nameof(CHDIR);
         private const string CAT = nameof(CAT);
         private const string WRITE = nameof(WRITE);
         private const string RENAME = nameof(RENAME);
         private const string COPY = nameof(COPY);
+        private const string CLEAR = nameof(CLEAR);
         private const string MKDIR = nameof(MKDIR);
         private const string MKFILE = nameof(MKFILE);
         private const string RMDIR = nameof(RMDIR);
@@ -40,6 +46,7 @@ namespace UI
         private const string WR = nameof(WR);
         private const string RN = nameof(RN);
         private const string CP = nameof(CP);
+        private const string CL = nameof(CL);
         private const string MD = nameof(MD);
         private const string MF = nameof(MF);
         private const string RD = nameof(RD);
@@ -76,19 +83,26 @@ namespace UI
                 {
                     Console.Write(_currDir.FullName + '>');
                     string[] commands = Console.ReadLine().Split_(' ', 2);
+                    if (commands.Length == 0)
+                        continue;
                     Console.WriteLine();
 
                     switch (commands[0].ToUpperASCII_())
                     {
-
+                        case R:
                         case RELOAD:
+                        {
                             Program.Reload = true;
                             goto case EXIT;
+                        }
 
+                        case E:
                         case EXIT:
+                        {
                             if (!IsDisposed)
                                 Invoke(new Action(Close));
                             return;
+                        }
 
                         case HELP:
                         {
@@ -158,52 +172,52 @@ namespace UI
                             Directory directory = _currDir;
 
                             if (commands.Length > 1 &&
-                                _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             List_<char> chars = new List_<char>();
                             Console.WriteLine(directory.Name);
                             foreach (var item in directory.SubDirectories.SelectTree_(dir => dir.SubDirectories, (dir, depth) =>
-                            {
-                                int excess = chars.Count - 1 - depth;
-                                if (excess > 0)
                                 {
-                                    chars.RemoveLast(excess);
-                                    chars[chars.Count - 1] = '├';
-                                }
-                                if (IsFirst(dir))
-                                {
-                                    if (chars.Count > 0)
-                                        chars[chars.Count - 1] = IsLast(dir.Parent) ? ' ' : '│';
-                                    chars.Add(IsLast(dir) ? '└' : '├');
-                                }
-                                else if (IsLast(dir))
-                                {
-                                    chars[chars.Count - 1] = '└';
-                                }
-
-                                return Indet(string.Concat(chars), 4) + dir.Name;
-
-                                bool IsFirst(Directory d) => d.Parent.SubDirectories[0] == d;
-                                bool IsLast(Directory d) => d.Parent.SubDirectories.Last_() == d;
-                                string Indet(string str, int level)
-                                {
-                                    char[] chs = new char[str.Length * level];
-                                    for (int i = 0; i < str.Length - 1; i++)
+                                    int excess = chars.Count - 1 - depth;
+                                    if (excess > 0)
                                     {
-                                        chs[i * level] = str[i];
-                                        for (int y = 1; y < level; y++)
-                                            chs[i * level + y] = ' ';
+                                        chars.RemoveLast(excess);
+                                        chars[chars.Count - 1] = '├';
                                     }
-                                    int last = str.Length - 1;
-                                    chs[last * level] = str[last];
-                                    for (int y = 1; y < level; y++)
-                                        chs[last * level + y] = '─';
+                                    if (IsFirst(dir))
+                                    {
+                                        if (chars.Count > 0)
+                                            chars[chars.Count - 1] = IsLast(dir.Parent) ? ' ' : '│';
+                                        chars.Add(IsLast(dir) ? '└' : '├');
+                                    }
+                                    else if (IsLast(dir))
+                                    {
+                                        chars[chars.Count - 1] = '└';
+                                    }
 
-                                    return new string(chs);
-                                }
-                            }))
+                                    return Indet(string.Concat(chars), 4) + dir.Name;
+
+                                    bool IsFirst(Directory d) => d.Parent.SubDirectories[0] == d;
+                                    bool IsLast(Directory d) => d.Parent.SubDirectories.Last_() == d;
+                                    string Indet(string str, int level)
+                                    {
+                                        char[] chs = new char[str.Length * level];
+                                        for (int i = 0; i < str.Length - 1; i++)
+                                        {
+                                            chs[i * level] = str[i];
+                                            for (int y = 1; y < level; y++)
+                                                chs[i * level + y] = ' ';
+                                        }
+                                        int last = str.Length - 1;
+                                        chs[last * level] = str[last];
+                                        for (int y = 1; y < level; y++)
+                                            chs[last * level + y] = '─';
+
+                                        return new string(chs);
+                                    }
+                                }))
                                 Console.WriteLine(item);
                             break;
                         }
@@ -214,8 +228,8 @@ namespace UI
                             Directory directory = _currDir;
 
                             if (commands.Length > 1 &&
-                                _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             if (directory.SubDirectories.Count > 0)
@@ -250,7 +264,7 @@ namespace UI
                             }
 
                             if (_currDir.TryFindDirectory(commands[1], out Directory directory, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             _currDir = directory;
@@ -267,7 +281,7 @@ namespace UI
                             }
 
                             if (_currDir.TryFindFile(commands[1], out File file, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             file.Load();
@@ -280,6 +294,10 @@ namespace UI
 
                                 case FileFormat.Txt:
                                     Console.WriteLine(file.Object);
+                                    break;
+
+                                case FileFormat.Rtf:
+                                    Console.WriteLine(((RichTextBox)file.Object).Text);
                                     break;
 
                                 case FileFormat.Bmp: throw new NotImplementedException();
@@ -304,7 +322,7 @@ namespace UI
                             string[] args = commands[1].Split_(' ', 2);
 
                             if (_currDir.TryFindFile(args[0], out File file, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             if (file.Format != FileFormat.Txt)
@@ -329,7 +347,7 @@ namespace UI
                                 break;
                             }
 
-                            string[] args = commands[1].Split(' ');
+                            string[] args = commands[1].Split_(' ');
                             if (args.Length == 1)
                             {
                                 Console.WriteLine("Please specify a new name.");
@@ -337,11 +355,11 @@ namespace UI
                             }
 
                             if (_currDir.TryFindObject(args[0], out FileSystemNS.Object obj, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             if (obj.TrySetName(args[1])
-                                .IsError(Console.WriteLine, args[1]))
+                                    .IsError(Console.WriteLine, args[1]))
                                 break;
 
                             continue;
@@ -350,6 +368,45 @@ namespace UI
                         case CP:
                         case COPY:
                         {
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please specify an object.");
+                                break;
+                            }
+
+                            string[] args = commands[1].Split_(' ', 3);
+                            string dirTargetName = args.Length == 1 ? "." : args[1];
+
+                            if (_currDir.TryFindFile(args[0], out File file, out string faultedFileName)
+                                    .IsError(Console.WriteLine, faultedFileName))
+                                break;
+
+                            if (_currDir.TryFindDirectory(dirTargetName, out Directory directory, out string faultedDirName)
+                                    .IsError(Console.WriteLine, faultedDirName))
+                                break;
+
+                            if (directory.TryCopyFile(file, args.Length == 3 ? args[2] : null)
+                                    .IsError(Console.WriteLine))
+                                break;
+
+                            continue;
+                        }
+
+                        case CL:
+                        case CLEAR:
+                        {
+                            if (commands.Length == 1)
+                            {
+                                Console.Clear();
+                                continue;
+                            }
+
+                            if (_currDir.TryFindObject(commands[1], out FileSystemNS.Object obj, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
+                                break;
+
+                            obj.Clear();
+
                             continue;
                         }
 
@@ -362,8 +419,8 @@ namespace UI
                                 break;
                             }
 
-                            if (_currDir.TryCreateDirectory(commands[1], out _, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                            if (_currDir.TryCreateDirectory(commands[1].Split_(' ')[0], out _, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             continue;
@@ -378,8 +435,8 @@ namespace UI
                                 break;
                             }
 
-                            if (_currDir.TryCreateFile(commands[1], out _, out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                            if (_currDir.TryCreateFile(commands[1].Split_(' ')[0], out _, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             continue;
@@ -395,7 +452,7 @@ namespace UI
                             }
 
                             if (_currDir.TryRemoveDirectory(commands[1], out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             continue;
@@ -411,7 +468,7 @@ namespace UI
                             }
 
                             if (_currDir.TryRemoveFile(commands[1], out string faultedName)
-                                .IsError(Console.WriteLine, faultedName))
+                                    .IsError(Console.WriteLine, faultedName))
                                 break;
 
                             continue;
@@ -420,14 +477,143 @@ namespace UI
                         case IM:
                         case IMPORT:
                         {
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please enter arguments.");
+                                break;
+                            }
 
+                            string[] args = commands[1].Split(' ');
+                            string externalFileName;
+
+                            if (args[0].ContainsAny_('\\', ':'))
+                            {
+                                externalFileName = args[0];
+                                goto FileNameChosen;
+                            }
+
+                            if (System.IO.Directory.Exists(FileHelper.MainExternalDirectory + "\\Import"))
+                            {
+                                externalFileName = FileHelper.MainExternalDirectory + "\\Import\\" + args[0];
+                                goto FileNameChosen;
+                            }
+
+                            Console.WriteLine("External directory \"Import\" is not present. Create one or enter a full path.");
                             break;
+
+                            FileNameChosen:
+                            if (!System.IO.File.Exists(externalFileName))
+                            {
+                                Console.WriteLine("External file not found.");
+                                break;
+                            }
+
+                            string extFileExtension = FileFormatExt.ResolveAliases(File.GetExtension(externalFileName).ToLowerASCII_());
+                            string internalFileName = (args.Length == 1
+                                        ? File.GetPureName(args[0])
+                                        : args[1]) +
+                                    '.' + extFileExtension;
+
+                            if (_currDir.TryCreateFile(internalFileName, out File file, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
+                                break;
+
+                            object obj = null;
+                            switch (extFileExtension)
+                            {
+                                case "txt":
+                                    obj = System.IO.File.ReadAllText(externalFileName);
+                                    break;
+
+                                case "rtf":
+                                    var temp = new RichTextBox();
+                                    temp.LoadFile(externalFileName);
+                                    obj = temp;
+                                    break;
+
+                                case "bmp":
+                                case "emf":
+                                case "wmf":
+                                case "gif":
+                                case "jpeg":
+                                case "png":
+                                case "tiff":
+                                case "exif":
+                                case "icon":
+                                    obj = Image.FromFile(externalFileName); // All supported formats of Image are used
+                                    break;
+
+                                case "wav":
+                                    obj = new System.Media.SoundPlayer(externalFileName);
+                                    break;
+
+                                default: throw new UnreachableException("File format should have been checked on internal file creation.");
+                            }
+
+                            if (file.TrySetObject(obj)
+                                    .IsError(Console.WriteLine))
+                                throw new UnreachableException("File format should have been the same.");
+                            file.Save();
+
+                            continue;
                         }
 
                         case EX:
                         case EXPORT:
                         {
+                            if (commands.Length == 1)
+                            {
+                                Console.WriteLine("Please enter arguments.");
+                                break;
+                            }
 
+                            string[] args = commands[1].Split(' ');
+
+                            if (_currDir.TryFindFile(args[0], out File file, out string faultedName)
+                                    .IsError(Console.WriteLine, faultedName))
+                                break;
+
+                            string externalFileName = args.Length == 1
+                                    ? args[0]
+                                    : File.AttachExtension(args[1], File.GetExtension(args[0]));
+
+                            if (!externalFileName.ContainsAny_('\\', ':'))
+                            {
+                                System.IO.Directory.CreateDirectory(FileHelper.MainExternalDirectory + "\\Export");
+                                externalFileName = FileHelper.MainExternalDirectory + "\\Export\\" + externalFileName;
+                            }
+
+                            if (System.IO.File.Exists(externalFileName))
+                            {
+                                Console.WriteLine("External file already exists.");
+                                break;
+                            }
+
+                            file.Load();
+                            switch (file.Object)
+                            {
+                                case null:
+                                    Console.WriteLine("Selected file was empty.");
+                                    break;
+
+                                case string str:
+                                    System.IO.File.WriteAllText(externalFileName, str);
+                                    continue;
+
+                                case RichTextBox rtb:
+                                    rtb.SaveFile(externalFileName);
+                                    continue;
+
+                                case Image img:
+                                    img.Save(externalFileName);
+                                    continue;
+
+                                case System.Media.SoundPlayer sp:
+                                    using (var stream = System.IO.File.OpenWrite(externalFileName))
+                                        sp.Stream.CopyTo(stream);
+                                    continue;
+                                default: throw new UnreachableException("File format should have been set correctly on file creation.");
+                            }
                             break;
                         }
 

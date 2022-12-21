@@ -70,7 +70,11 @@ namespace CustomCollections
             finally { _array[Count] = default; }
         }
 
-        public void Clear() => Array.Clear(_array, 0, Count);
+        public void Clear()
+        {
+            Array.Clear(_array, 0, Count);
+            Count = 0;
+        }
 
         public IEnumerator<T> GetEnumerator()
         {

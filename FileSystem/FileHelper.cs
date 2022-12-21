@@ -12,7 +12,15 @@ namespace FileSystemNS
         private const string HELP = nameof(HELP);
         private const string OPEN = nameof(OPEN);
         private const int PAD_COUNT = 10;
-        private static readonly string _defaultDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName + "\\Files\\";
+        private static readonly string _defaultDirectory;
+
+        public static string MainExternalDirectory { get; }
+
+        static FileHelper()
+        {
+            MainExternalDirectory = new DirectoryInfo(System.IO.Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName;
+            _defaultDirectory = MainExternalDirectory + "\\Files\\";
+        }
 
         public static FileSystem Open(string input)
         {

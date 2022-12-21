@@ -45,7 +45,7 @@
     <Compile Include="Collections\BitArray_.cs" />
     <Compile Include="Collections\Stack_.cs" />
     <Compile Include="Constants.cs" />
-    <Compile Include="Extensions.cs" />
+    <Compile Include="ToReadOnlyExt.cs" />
     <Compile Include="ArrayExt.cs" />
     <Compile Include="Wrappers\LinkedListNode_.cs" />
     <Compile Include="Collections\LinkedList_.cs" />

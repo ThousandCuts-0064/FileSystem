@@ -311,7 +311,7 @@ namespace FileSystemNS
         internal void AppendInfoBytes(Object obj, byte[] bytes)
         {
             SetByteCountAt(obj.Address, obj.ByteCount + bytes.Length);
-            SetInfoBytesAt(EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out long index), true).Last_() + index, bytes);
+            SetInfoBytesAt(EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out long index)).Last_() + index, bytes);
         }
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes) => SetInfoBytesAt(byteAddress, bytes, 0, bytes.Length);
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes, int index, int count)
@@ -355,18 +355,21 @@ namespace FileSystemNS
             byte[] bytes = new byte[ADDRESS_BYTES];
 
             long dirSector = EnumerateSectors(
-                parent.Address,
-                FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES, out long dirIndex),
-                true)
-                    .Last_();
+                    parent.Address,
+                    FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES, out long dirIndex))
+                .Last_();
             long dirWriteAddress = dirSector + dirIndex;
             long firstFileIndex = dirIndex + ADDRESS_BYTES;
             long fileSector = EnumerateSectors(
-                dirSector,
-                FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileIndex),
-                true)
-                    .Last_();
+                    dirSector,
+                    FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileIndex))
+                .Last_();
             long fileWriteAddress = fileSector + fileIndex;
+
+            if (fileWriteAddress % SectorSize == NextSectorAddressIndex)
+            {
+
+            }
 
             _stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
             _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
@@ -381,10 +384,9 @@ namespace FileSystemNS
             byte[] bytes = new byte[ADDRESS_BYTES];
 
             long fileSector = EnumerateSectors(
-                parent.Address,
-                FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex),
-                true)
-                    .Last_();
+                    parent.Address,
+                    FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex))
+                .Last_();
             long fileWriteAddress = fileSector + fileIndex;
 
             fileAddress.GetBytes(bytes, 0);
@@ -398,17 +400,15 @@ namespace FileSystemNS
             long dirSectorAddress = EnumerateSectors(parent.Address, dirSectorIndex, true).Last_();
             long dirWriteAddress = dirSectorAddress + dirShortIndex;
             long lastSector = EnumerateSectors(
-                dirSectorAddress,
-                FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastDirIndex) - dirSectorIndex,
-                true)
-                    .Last_();
+                    dirSectorAddress,
+                    FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastDirIndex) - dirSectorIndex)
+                .Last_();
             long dirReadAddress = lastSector + lastDirIndex;
             long fileSpaceIndex = lastDirIndex + ADDRESS_BYTES;
             long lastFileSectorAddress = EnumerateSectors(
-                lastSector,
-                FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastFileIndex),
-                true)
-                    .Last_();
+                    lastSector,
+                    FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastFileIndex))
+                .Last_();
 
             _stream.ReadAt(dirReadAddress, bytes, 0, bytes.Length);
             _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
@@ -425,10 +425,9 @@ namespace FileSystemNS
             long fileWriteSector = EnumerateSectors(parent.Address, fileSectorIndex, true).Last_();
             long fileWriteAddress = fileWriteSector + fileShortIndex;
             long fileReadAddress = EnumerateSectors(
-                fileWriteSector,
-                FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex),
-                true)
-                    .Last_() + fileReadIndex;
+                    fileWriteSector,
+                    FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex))
+                .Last_() + fileReadIndex;
 
             _stream.ReadAt(fileReadAddress, bytes, 0, bytes.Length);
             _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
@@ -447,10 +446,9 @@ namespace FileSystemNS
             long objAddres = objSectorAddress + byteIndex;
 
             long lastSector = EnumerateSectors(
-                objSectorAddress,
-                FullSectorsAndByteIndex(byteCount - ADDRESS_BYTES, out long lastAddressIndex) - objSectorIndex,
-                true)
-                    .Last_();
+                    objSectorAddress,
+                    FullSectorsAndByteIndex(byteCount - ADDRESS_BYTES, out long lastAddressIndex) - objSectorIndex)
+                .Last_();
 
             _stream.ReadAt(lastSector + lastAddressIndex, bytes, 0, bytes.Length);
             _stream.WriteAt(objAddres, bytes, 0, bytes.Length);
@@ -492,15 +490,13 @@ namespace FileSystemNS
             _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
         }
 
-        internal void FreeSectorsOf(Object obj)
+        internal void FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object
         {
             if (obj is Directory dir)
-            {
-                foreach (var subDir in dir.SubDirectories)
-                    FreeSectorsOf(subDir);
-            }
+                foreach (var subObj in dir.EnumerateObjects())
+                    FreeSectorsOf(subObj);
 
-            foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), true))
+            foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), removeFirst))
                 FreeSectorAt(address);
         }
 
@@ -520,7 +516,7 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
         }
 
-        private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldGivenAddress)
+        private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldGivenAddress = true)
         {
             if (yieldGivenAddress) yield return address;
             if (sectorCount == 0) yield break;

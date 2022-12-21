@@ -92,6 +92,7 @@ namespace FileSystemNS
         public virtual void Clear()
         {
             ByteCount = 0;
+            FileSystem.FreeSectorsOf(this, false);
             FileSystem.SerializeByteCount(this);
         }
 
