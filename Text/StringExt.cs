@@ -120,9 +120,9 @@ namespace Text
             return new string(chars);
         }
 
-        public static string[] Split_(this string str, char separator) => str.Split_(new char[] { separator }, str.Length - 1);
+        public static string[] Split_(this string str, char separator) => str.Split_(new char[] { separator }, str.Length);
         public static string[] Split_(this string str, char separator, int maxResults) => str.Split_(new char[] { separator }, maxResults);
-        public static string[] Split_(this string str, char[] separators) => str.Split_(separators, str.Length - 1);
+        public static string[] Split_(this string str, char[] separators) => str.Split_(separators, str.Length);
         public static string[] Split_(this string str, char[] separators, int maxResults)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));

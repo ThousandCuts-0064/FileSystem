@@ -20,9 +20,8 @@ namespace FileSystemNS
 
         internal long SectorCount { get; }
         internal long RootAddress { get; }
-        internal long AddressNextSectorBytesIndex { get; }
         internal ushort SectorSize { get; }
-        internal ushort NextSectorAddressIndex { get; }
+        internal ushort NextSectorIndex { get; }
         internal ushort SectorInfoSize { get; }
         internal ushort FirstSectorInfoSize { get; }
         internal long BitmapBytes => _bitMap.ByteCount;
@@ -38,13 +37,12 @@ namespace FileSystemNS
             TotalSize = totalSize;
             SectorSize = sectorSize;
             SectorInfoSize = (ushort)(SectorSize - ADDRESS_BYTES);
-            NextSectorAddressIndex = (ushort)(SectorInfoSize - ADDRESS_BYTES);
-            FirstSectorInfoSize = (ushort)(SectorInfoSize - 1 - NAME_BYTES - LONG_BYTES);
+            NextSectorIndex = (ushort)(SectorSize - ADDRESS_BYTES);
+            FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES);
             SectorCount = sectorCount;
             _bitMap = bitmap;
             int rquiredBytes = BITMAP_INDEX + _bitMap.ByteCount;
             RootAddress = Math_.DivCeiling(rquiredBytes, SectorSize) * SectorSize;
-            AddressNextSectorBytesIndex = SectorCount - ADDRESS_BYTES;
         }
 
         public static FileSystem Create(FileStream fileStream, string name, long totalSize, ushort sectorSize)
@@ -150,7 +148,7 @@ namespace FileSystemNS
                 strs.Add(bytes.ToHex_());
 
                 bytes = new byte[ADDRESS_BYTES];
-                _stream.ReadAt(RootDirectory.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + NextSectorIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
             }
 
@@ -212,7 +210,7 @@ namespace FileSystemNS
                 strs.Add(bytes.ToBin_());
 
                 bytes = new byte[ADDRESS_BYTES];
-                _stream.ReadAt(RootDirectory.Address + AddressNextSectorBytesIndex, bytes, 0, bytes.Length);
+                _stream.ReadAt(RootDirectory.Address + NextSectorIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
             }
 
@@ -288,7 +286,7 @@ namespace FileSystemNS
             index += countFirstSector;
             int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
             byte[] addressBytes = new byte[ADDRESS_BYTES];
-            _stream.ReadAt(address + NextSectorAddressIndex, addressBytes, 0, addressBytes.Length);
+            _stream.ReadAt(address + NextSectorIndex, addressBytes, 0, addressBytes.Length);
 
             long lastFullSectorAddress = -1;
             foreach (var currAddress in EnumerateSectors(addressBytes.GetLong(0), fullSectors, false))
@@ -298,7 +296,7 @@ namespace FileSystemNS
                 lastFullSectorAddress = currAddress;
             }
 
-            _stream.ReadAt(lastFullSectorAddress + NextSectorAddressIndex, addressBytes, 0, addressBytes.Length);
+            _stream.ReadAt(lastFullSectorAddress + NextSectorIndex, addressBytes, 0, addressBytes.Length);
             _stream.ReadAt(addressBytes.GetLong(0) + remaining, bytes, index, remaining);
         }
 
@@ -356,19 +354,50 @@ namespace FileSystemNS
 
             long dirSector = EnumerateSectors(
                     parent.Address,
-                    FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES, out long dirIndex))
+                    FullSectorsAndByteIndex(
+                        INFO_BYTES_INDEX, 
+                        FirstSectorInfoSize + ADDRESS_BYTES, 
+                        SectorSize, 
+                        parent.SubDirectories.Count * ADDRESS_BYTES, 
+                        out long dirIndex))
                 .Last_();
             long dirWriteAddress = dirSector + dirIndex;
-            long firstFileIndex = dirIndex + ADDRESS_BYTES;
             long fileSector = EnumerateSectors(
                     dirSector,
-                    FullSectorsAndByteIndex(firstFileIndex, SectorInfoSize - firstFileIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileIndex))
+                    FullSectorsAndByteIndex(
+                        dirIndex, 
+                        SectorSize - dirIndex,
+                        SectorSize,
+                        parent.Files.Count * ADDRESS_BYTES, 
+                        out long fileIndex))
                 .Last_();
             long fileWriteAddress = fileSector + fileIndex;
 
-            if (fileWriteAddress % SectorSize == NextSectorAddressIndex)
+            if (parent.Files.Count == 0 && dirIndex == NextSectorIndex)
             {
+                long nextSector = FindFreeSector();
+                nextSector.GetBytes(bytes, 0);
+                _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
+                AllocateSectorAt(nextSector);
 
+                subdirAddress.GetBytes(bytes, 0);
+                _stream.WriteAt(nextSector, bytes, 0, bytes.Length);
+                return;
+            }
+
+            if (fileIndex == NextSectorIndex)
+            {
+                long nextSector = FindFreeSector();
+                nextSector.GetBytes(bytes, 0);
+                _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+                AllocateSectorAt(nextSector);
+
+                _stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
+                _stream.WriteAt(nextSector, bytes, 0, bytes.Length);
+
+                subdirAddress.GetBytes(bytes, 0);
+                _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
+                return;
             }
 
             _stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
@@ -385,9 +414,26 @@ namespace FileSystemNS
 
             long fileSector = EnumerateSectors(
                     parent.Address,
-                    FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex))
+                    FullSectorsAndByteIndex(
+                        INFO_BYTES_INDEX,
+                        FirstSectorInfoSize + ADDRESS_BYTES,
+                        SectorSize,
+                        parent.ObjectCount * ADDRESS_BYTES, 
+                        out long fileIndex))
                 .Last_();
             long fileWriteAddress = fileSector + fileIndex;
+
+            if (fileIndex == NextSectorIndex)
+            {
+                long nextSector = FindFreeSector();
+                nextSector.GetBytes(bytes, 0);
+                _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+                AllocateSectorAt(nextSector);
+
+                fileAddress.GetBytes(bytes, 0);
+                _stream.WriteAt(nextSector, bytes, 0, bytes.Length);
+                return;
+            }
 
             fileAddress.GetBytes(bytes, 0);
             _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
@@ -404,10 +450,9 @@ namespace FileSystemNS
                     FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastDirIndex) - dirSectorIndex)
                 .Last_();
             long dirReadAddress = lastSector + lastDirIndex;
-            long fileSpaceIndex = lastDirIndex + ADDRESS_BYTES;
             long lastFileSectorAddress = EnumerateSectors(
                     lastSector,
-                    FullSectorsAndByteIndex(fileSpaceIndex, SectorInfoSize - fileSpaceIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long lastFileIndex))
+                    FullSectorsAndByteIndex(lastDirIndex, SectorInfoSize - lastDirIndex, parent.Files.Count * ADDRESS_BYTES, out long lastFileIndex))
                 .Last_();
 
             _stream.ReadAt(dirReadAddress, bytes, 0, bytes.Length);
@@ -426,7 +471,7 @@ namespace FileSystemNS
             long fileWriteAddress = fileWriteSector + fileShortIndex;
             long fileReadAddress = EnumerateSectors(
                     fileWriteSector,
-                    FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, parent.Files.Count * ADDRESS_BYTES - ADDRESS_BYTES, out long fileReadIndex))
+                    FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, (parent.Files.Count - 1 - fileIndex) * ADDRESS_BYTES, out long fileReadIndex))
                 .Last_() + fileReadIndex;
 
             _stream.ReadAt(fileReadAddress, bytes, 0, bytes.Length);
@@ -505,7 +550,15 @@ namespace FileSystemNS
             byteIndex = INFO_BYTES_INDEX + byteCount;
             return byteCount < FirstSectorInfoSize
                 ? 0
-                : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
+                : 1 + (int)Math.DivRem(byteIndex - FirstSectorInfoSize, SectorInfoSize, out byteIndex);
+        }
+
+        internal int FullSectorsAndByteIndex(long startIndex, long firstSectorSpace, long sectorSize, long byteCount, out long byteIndex)
+        {
+            byteIndex = startIndex + byteCount;
+            return byteCount < firstSectorSpace
+                ? 0
+                : 1 + (int)Math.DivRem(byteIndex - firstSectorSpace, sectorSize, out byteIndex);
         }
 
         internal int FullSectorsAndByteIndex(long startIndex, long firstSectorSpace, long byteCount, out long byteIndex)
@@ -513,7 +566,7 @@ namespace FileSystemNS
             byteIndex = startIndex + byteCount;
             return byteCount < firstSectorSpace
                 ? 0
-                : 1 + (int)Math.DivRem(byteCount, SectorInfoSize, out byteIndex);
+                : 1 + (int)Math.DivRem(byteIndex - firstSectorSpace, SectorInfoSize, out byteIndex);
         }
 
         private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldGivenAddress = true)
@@ -526,7 +579,7 @@ namespace FileSystemNS
 
             for (int i = 0; i < sectorCount; i++)
             {
-                _stream.ReadAt(currAddress + NextSectorAddressIndex, bytes, 0, bytes.Length);
+                _stream.ReadAt(currAddress + NextSectorIndex, bytes, 0, bytes.Length);
                 currAddress = bytes.GetLong(0);
                 yield return currAddress;
             }
@@ -573,7 +626,7 @@ namespace FileSystemNS
                 long currAddress = _object.Address;
                 for (int i = 0; i < Count; i++)
                 {
-                    FileSystem._stream.ReadAt(currAddress + FileSystem.NextSectorAddressIndex, bytes, 0, bytes.Length);
+                    FileSystem._stream.ReadAt(currAddress + FileSystem.NextSectorIndex, bytes, 0, bytes.Length);
                     currAddress = bytes.GetLong(0);
                     yield return currAddress;
                 }
