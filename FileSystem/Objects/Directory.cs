@@ -250,18 +250,15 @@ namespace FileSystemNS
             var result = ValidateName(this, name);
             if (result != FSResult.Success) return result;
 
-            if (FileSystem.FreeSectors == 0) return FSResult.NotEnoughSpace;
+            if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new directory and one for expansion. 
+                return FSResult.NotEnoughSpace;
 
-            long address = FileSystem.FindFreeSector();
-            FileSystem.CreateSubdirectory(this, address);
-
-            directory = new Directory(FileSystem, this, address, ObjectFlags.Directory, name, 0);
+            directory = new Directory(FileSystem, this, FileSystem.CreateSubdirectory(this), ObjectFlags.Directory, name, 0);
             _subDirectories.Add(directory);
             ByteCount += ADDRESS_BYTES;
             _files.CycleLeft();
 
             FileSystem.SerializeProperties(directory);
-            FileSystem.AllocateSectorAt(address);
             return FSResult.Success;
         }
 
@@ -283,17 +280,14 @@ namespace FileSystemNS
             result = File.ValidateFormat(name);
             if (result != FSResult.Success) return result;
 
-            if (FileSystem.FreeSectors == 0) return FSResult.NotEnoughSpace;
+            if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new file and one for expansion. 
+                return FSResult.NotEnoughSpace;
 
-            long address = FileSystem.FindFreeSector();
-            FileSystem.CreatFile(this, address);
-
-            file = new File(FileSystem, this, address, ObjectFlags.None, name, 0);
+            file = new File(FileSystem, this, FileSystem.CreatFile(this), ObjectFlags.None, name, 0);
             _files.Add(file);
             ByteCount += ADDRESS_BYTES;
 
             FileSystem.SerializeProperties(file);
-            FileSystem.AllocateSectorAt(address);
             return FSResult.Success;
         }
 
