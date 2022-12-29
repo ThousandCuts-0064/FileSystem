@@ -46,7 +46,7 @@ namespace CustomCollections
             }
         }
 
-        public UnorderedList_() => _array = new T[DEFAULT_SIZE];
+        public UnorderedList_() => _array = Array.Empty<T>();
 
         public UnorderedList_(int capacity)
         {
@@ -90,7 +90,9 @@ namespace CustomCollections
 
         public void Add(T item)
         {
-            if (Count == _array.Length) ExpandTo(_array.Length * 2);
+            if (Count == _array.Length) 
+                ExpandTo(_array.Length * 2);
+
             _array[Count++] = item;
         }
 
@@ -101,15 +103,44 @@ namespace CustomCollections
             if (source is ICollection<T> collection)
             {
                 int countTotal = Count + collection.Count;
-                if (countTotal < Capacity) ExpandTo(countTotal);
-                if (collection == this) Array.Copy(_array, 0, _array, Count, Count);
-                else collection.CopyTo(_array, Count);
+                if (countTotal < Capacity) 
+                    ExpandTo(countTotal);
+
+                if (collection == this) 
+                    Array.Copy(_array, 0, _array, Count, Count);
+                else 
+                    collection.CopyTo(_array, Count);
+
                 Count += collection.Count;
                 return;
             }
 
             foreach (var item in source)
                 Add(item);
+        }
+
+        public void Insert(int index, T item)
+        {
+            if ((uint)index > (uint)(_array.Length - Count)) throw new IndexOutOfBoundsException(nameof(index));
+
+            Add(_array[index]);
+            _array[index] = item;
+        }
+
+        public void InsertRange(int index, IEnumerable<T> source)
+        {
+            if ((uint)index > (uint)(_array.Length - Count)) throw new IndexOutOfBoundsException(nameof(index));
+            if (source is null) throw new ArgumentNullException(nameof(source));
+
+            if (source is ICollection<T> collection)
+            {
+                int countTotal = Count + collection.Count;
+                if (countTotal < Capacity)
+                    ExpandTo(countTotal);
+            }
+
+            foreach (var item in source)
+                Insert(index, item);
         }
 
         public bool Contains(T item) => _array.Contains_(item, 0, Count);
@@ -161,16 +192,6 @@ namespace CustomCollections
             //Check for overflow
             if ((uint)newCapacity > ARRAY_MAX_LENGTH) newCapacity = ARRAY_MAX_LENGTH;
             Capacity = newCapacity;
-        }
-
-        void IList<T>.Insert(int index, T item)
-        {
-            if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
-
-            if (Count == _array.Length) ExpandTo(_array.Length * 2);
-            if (index < Count) Array.Copy(_array, index, _array, index + 1, Count - index);
-            _array[index] = item;
-            Count++;
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

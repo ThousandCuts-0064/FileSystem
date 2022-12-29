@@ -139,24 +139,5 @@ namespace FileSystemNS
 
             return new string(chars);
         }
-
-        public static byte[] EncodeRSLDPC(this byte[] data, int numCheckSymbols = ADDRESS_BYTES)
-        {
-            // Create a polynomial with the data symbols as coefficients
-            Polynomial dataPoly = new Polynomial(data);
-
-            // Create a generator polynomial with the correct degree
-            Polynomial generatorPoly = Polynomial.CreateGeneratorPolynomial(numCheckSymbols);
-
-            // Calculate the check symbols by performing polynomial division
-            Polynomial checkPoly = dataPoly.Modulo(generatorPoly);
-
-            // Combine the data symbols and the check symbols
-            byte[] encodedData = new byte[data.Length + numCheckSymbols];
-            Array.Copy(data, encodedData, data.Length);
-            Array.Copy(checkPoly.Coefficients, 0, encodedData, data.Length, numCheckSymbols);
-
-            return encodedData;
-        }
     }
 }

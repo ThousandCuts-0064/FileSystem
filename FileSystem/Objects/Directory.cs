@@ -38,8 +38,6 @@ namespace FileSystemNS
                 0);
 
             fileSystem.SerializeProperties(directory);
-            fileSystem.AllocateSectorAt(fileSystem.RootAddress);
-
             return directory;
         }
 
@@ -54,7 +52,6 @@ namespace FileSystemNS
                 fileSystem.GetByteCountAt(fileSystem.RootAddress));
 
             fileSystem.DeserializeAllInfoBytes(directory);
-
             return directory;
         }
 

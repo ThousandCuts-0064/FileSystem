@@ -46,7 +46,7 @@ namespace CustomCollections
             }
         }
 
-        public List_() => _array = new T[DEFAULT_SIZE];
+        public List_() => _array = Array.Empty<T>();
 
         public List_(int capacity)
         {
@@ -72,7 +72,9 @@ namespace CustomCollections
 
         public void Add(T item)
         {
-            if (Count == _array.Length) ExpandTo(_array.Length * 2);
+            if (Count == _array.Length) 
+                ExpandTo(_array.Length * 2);
+
             _array[Count++] = item;
         }
 
@@ -80,8 +82,12 @@ namespace CustomCollections
         {
             if ((uint)index > (uint)Count) throw new IndexOutOfBoundsException(nameof(index));
 
-            if (Count == _array.Length) ExpandTo(_array.Length * 2);
-            if (index < Count) Array.Copy(_array, index, _array, index + 1, Count - index);
+            if (Count == _array.Length) 
+                ExpandTo(_array.Length * 2);
+
+            if (index < Count) 
+                Array.Copy(_array, index, _array, index + 1, Count - index);
+
             _array[index] = item;
             Count++;
         }
@@ -93,9 +99,14 @@ namespace CustomCollections
             if (source is ICollection<T> collection)
             {
                 int countTotal = Count + collection.Count;
-                if (countTotal < Capacity) ExpandTo(countTotal);
-                if (collection == this) Array.Copy(_array, 0, _array, Count, Count);
-                else collection.CopyTo(_array, Count);
+                if (countTotal < Capacity) 
+                    ExpandTo(countTotal);
+
+                if (collection == this) 
+                    Array.Copy(_array, 0, _array, Count, Count);
+                else 
+                    collection.CopyTo(_array, Count);
+
                 Count += collection.Count;
                 return;
             }

@@ -9,7 +9,7 @@ using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
-    [DebuggerDisplay("{FullName}")]
+    [DebuggerDisplay("{" + nameof(FullName) + "}")]
     public abstract class Object
     {
         private string _fullName;

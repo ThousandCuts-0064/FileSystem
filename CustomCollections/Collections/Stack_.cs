@@ -17,7 +17,7 @@ namespace CustomCollections
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         bool ICollection<T>.IsReadOnly => false;
 
-        public Stack_() => _array = new T[DEFAULT_SIZE];
+        public Stack_() => _array = Array.Empty<T>();
 
         public Stack_(int capacity)
         {
@@ -44,6 +44,7 @@ namespace CustomCollections
         public void Push(T item)
         {
             int newLength = _array.Length * 2;
+            if (newLength == 0) newLength = DEFAULT_SIZE;
             //Check for overflow
             T[] arr = new T[((uint)newLength > ARRAY_MAX_LENGTH) ? ARRAY_MAX_LENGTH : newLength];
             Array.Copy(_array, arr, Count);

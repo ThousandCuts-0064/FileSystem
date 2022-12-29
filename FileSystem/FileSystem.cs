@@ -17,6 +17,7 @@ namespace FileSystemNS
     {
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
+        private readonly HashSet_<long> _badSectors;
 
         internal long SectorCount { get; }
         internal long RootAddress { get; }
@@ -40,6 +41,7 @@ namespace FileSystemNS
             NextSectorIndex = (ushort)(SectorSize - ADDRESS_BYTES);
             FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES);
             SectorCount = sectorCount;
+            _badSectors = new HashSet_<long>();
             _bitMap = bitmap;
             int rquiredBytes = BITMAP_INDEX + _bitMap.ByteCount;
             RootAddress = Math_.DivCeiling(rquiredBytes, SectorSize) * SectorSize;
@@ -63,6 +65,8 @@ namespace FileSystemNS
 
             fileStream.WriteAt(0, bootSectorBytes, 0, BOOT_SECTOR_SIZE);
             fileStream.WriteAt(BITMAP_INDEX, bitMap.GetBytes(), 0, bitMap.ByteCount);
+
+            fileSystem.AllocateSectorAt(fileSystem.RootAddress);
             fileStream.WriteByteAt(0, (byte)BootByte.All); // Finally set the bits for successful initialization
 
             return fileSystem;
@@ -402,31 +406,6 @@ namespace FileSystemNS
                 _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
             }
 
-            #region old
-            //if (parent.Files.Count == 0 && dirIndex == 0)
-            //{
-            //    long nextSector = FindFreeSector();
-            //    nextSector.GetBytes(bytes, 0);
-            //    _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
-            //    AllocateSectorAt(nextSector);
-            //    dirWriteAddress = nextSector;
-            //    goto AfterFile;
-            //}
-
-            //if (fileIndex == 0)
-            //{
-            //    long nextSector = FindFreeSector();
-            //    nextSector.GetBytes(bytes, 0);
-            //    _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
-            //    AllocateSectorAt(nextSector);
-            //    fileWriteAddress = nextSector;
-            //}
-
-            //_stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
-            //_stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
-
-            //AfterFile:
-            #endregion
             newDirSector = FindFreeSector();
             newDirSector.GetBytes(bytes, 0);
             _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
@@ -504,28 +483,17 @@ namespace FileSystemNS
             if (fileReadAddress % SectorSize == 0) FreeSectorAt(fileReadAddress);
         }
 
-        [Obsolete("Worked when dirs and files were mixed", true)]
-        internal void RemoveObjectFromDirectory(Directory dir, int objIndex) => RemoveObjectFromAt(dir.Address, dir.ByteCount, objIndex);
-        [Obsolete("Worked when dirs and files were mixed", true)]
-        internal void RemoveObjectFromAt(long address, long byteCount, int objIndex)
+        internal void FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object
         {
-            byte[] bytes = new byte[ADDRESS_BYTES];
-            int objSectorIndex = FullSectorsAndByteIndex(objIndex * ADDRESS_BYTES, out long byteIndex);
-            long objSectorAddress = EnumerateSectors(address, objSectorIndex, true).Last_();
-            long objAddres = objSectorAddress + byteIndex;
+            if (obj is Directory dir)
+                foreach (var subObj in dir.EnumerateObjects())
+                    FreeSectorsOf(subObj);
 
-            long lastSector = EnumerateSectors(
-                    objSectorAddress,
-                    FullSectorsAndByteIndex(byteCount - ADDRESS_BYTES, out long lastAddressIndex) - objSectorIndex)
-                .Last_();
-
-            _stream.ReadAt(lastSector + lastAddressIndex, bytes, 0, bytes.Length);
-            _stream.WriteAt(objAddres, bytes, 0, bytes.Length);
-
-            if (lastAddressIndex % SectorSize == 0) FreeSectorAt(lastAddressIndex);
+            foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), removeFirst))
+                FreeSectorAt(address);
         }
 
-        internal long FindFreeSector()
+        private long FindFreeSector()
         {
             int index = _bitMap.IndexOf(false);
             return index == -1
@@ -533,7 +501,7 @@ namespace FileSystemNS
                 : index * SectorSize + RootAddress;
         }
 
-        internal void AllocateSectorAt(long address)
+        private void AllocateSectorAt(long address)
         {
             int index = (int)((address - RootAddress) / SectorSize);
             int byteIndex = index / BYTE_BITS;
@@ -546,7 +514,7 @@ namespace FileSystemNS
             _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
         }
 
-        internal void FreeSectorAt(long address)
+        private void FreeSectorAt(long address)
         {
             int index = (int)((address - RootAddress) / SectorSize);
             int byteIndex = index / BYTE_BITS;
@@ -559,17 +527,7 @@ namespace FileSystemNS
             _stream.WriteByteAt(BITMAP_INDEX + byteIndex, _bitMap.GetByte(byteIndex));
         }
 
-        internal void FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object
-        {
-            if (obj is Directory dir)
-                foreach (var subObj in dir.EnumerateObjects())
-                    FreeSectorsOf(subObj);
-
-            foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), removeFirst))
-                FreeSectorAt(address);
-        }
-
-        internal int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
+        private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
             byteIndex = INFO_BYTES_INDEX + byteCount;
             return byteCount < FirstSectorInfoSize
@@ -577,7 +535,7 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteIndex - FirstSectorInfoSize, SectorInfoSize, out byteIndex);
         }
 
-        internal int FullSectorsAndByteIndex(long startIndex, long firstSectorSpace, long byteCount, out long byteIndex)
+        private int FullSectorsAndByteIndex(long startIndex, long firstSectorSpace, long byteCount, out long byteIndex)
         {
             byteIndex = startIndex + byteCount;
             return byteCount < firstSectorSpace
