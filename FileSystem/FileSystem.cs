@@ -15,6 +15,8 @@ namespace FileSystemNS
 {
     public sealed class FileSystem : IDisposable
     {
+        private const int RESILIENCY_FACTOR = 64;
+
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
         private readonly HashSet_<long> _badSectors;
@@ -23,8 +25,10 @@ namespace FileSystemNS
         internal long RootAddress { get; }
         internal ushort SectorSize { get; }
         internal ushort NextSectorIndex { get; }
-        internal ushort SectorInfoSize { get; }
+        internal ushort ResiliencyBytes { get; }
+        internal ushort ResiliencyIndex { get; }
         internal ushort FirstSectorInfoSize { get; }
+        internal ushort SectorInfoSize => NextSectorIndex;
         internal long BitmapBytes => _bitMap.ByteCount;
         internal int FreeSectors => _bitMap.UnsetBits;
 
@@ -37,10 +41,11 @@ namespace FileSystemNS
             _stream = fileStream;
             TotalSize = totalSize;
             SectorSize = sectorSize;
-            SectorInfoSize = (ushort)(SectorSize - ADDRESS_BYTES);
-            NextSectorIndex = (ushort)(SectorSize - ADDRESS_BYTES);
-            FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES);
             SectorCount = sectorCount;
+            ResiliencyBytes = (ushort)(SectorSize / RESILIENCY_FACTOR);
+            ResiliencyIndex = (ushort)(SectorSize - ResiliencyBytes);
+            NextSectorIndex = (ushort)(ResiliencyIndex - ADDRESS_BYTES);
+            FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES - ResiliencyBytes);
             _badSectors = new HashSet_<long>();
             _bitMap = bitmap;
             int rquiredBytes = BITMAP_INDEX + _bitMap.ByteCount;
@@ -154,6 +159,10 @@ namespace FileSystemNS
                 bytes = new byte[ADDRESS_BYTES];
                 _stream.ReadAt(RootDirectory.Address + NextSectorIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToHex_());
+
+                bytes = new byte[ResiliencyBytes];
+                _stream.ReadAt(RootDirectory.Address + ResiliencyIndex, bytes, 0, bytes.Length);
+                strs.Add(bytes.ToHex_());
             }
 
             return strs;
@@ -216,6 +225,10 @@ namespace FileSystemNS
                 bytes = new byte[ADDRESS_BYTES];
                 _stream.ReadAt(RootDirectory.Address + NextSectorIndex, bytes, 0, bytes.Length);
                 strs.Add(bytes.ToBin_());
+
+                bytes = new byte[ResiliencyBytes];
+                _stream.ReadAt(RootDirectory.Address + ResiliencyIndex, bytes, 0, bytes.Length);
+                strs.Add(bytes.ToBin_());
             }
 
             return strs;
@@ -272,7 +285,6 @@ namespace FileSystemNS
         }
 
         internal void DeserializeAllInfoBytes(Object obj) => obj.DeserializeBytes(GetAllInfoBytesAt(obj.Address, checked((int)obj.ByteCount)));
-        internal byte[] GetAllInfoBytesAt(long address) => GetAllInfoBytesAt(address, checked((int)GetByteCountAt(address)));
         internal byte[] GetAllInfoBytesAt(long address, int count)
         {
             byte[] bytes = new byte[count];
@@ -543,9 +555,22 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteIndex - firstSectorSpace, SectorInfoSize, out byteIndex);
         }
 
+        /// <summary>
+        /// Iterates over the next sectorCount sectorts and yields them.
+        /// </summary>
+        /// <returns>Returns sector addresses or -1 if a bad sector is encountered</returns>
         private IEnumerable<long> EnumerateSectors(long address, int sectorCount, bool yieldGivenAddress = true)
         {
-            if (yieldGivenAddress) yield return address;
+            if (yieldGivenAddress)
+            {
+                if (IsBadSector(address))
+                {
+                    yield return -1;
+                    yield break;
+                }
+
+                yield return address;
+            }
             if (sectorCount == 0) yield break;
 
             byte[] bytes = new byte[ADDRESS_BYTES];
@@ -555,10 +580,69 @@ namespace FileSystemNS
             {
                 _stream.ReadAt(currAddress + NextSectorIndex, bytes, 0, bytes.Length);
                 currAddress = bytes.GetLong(0);
+
+                if (IsBadSector(currAddress))
+                {
+                    yield return -1;
+                    yield break;
+                }
+
                 yield return currAddress;
             }
         }
 
+        private bool IsBadSector(long address)
+        {
+            byte[] sectorBytes = new byte[SectorSize];
+            _stream.ReadAt(address, sectorBytes, 0, sectorBytes.Length);
+            byte[] bytes = new byte[ResiliencyBytes];
+            for (int i = 0; i < RESILIENCY_FACTOR; i++)
+                for (int y = 0; y < ResiliencyBytes; y++)
+                    bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
+
+            for (int i = 0; i < bytes.Length; i++)
+                if (bytes[i] != 0)
+                    return false;
+
+            _badSectors.Add(address);
+            CheckAllSectors();
+            return true;
+        }
+
+        private void UpdateResiliancy(long address)
+        {
+            byte[] sectorBytes = new byte[SectorSize];
+            _stream.ReadAt(address, sectorBytes, 0, sectorBytes.Length);
+            byte[] bytes = new byte[ResiliencyBytes];
+            for (int i = 0; i < RESILIENCY_FACTOR; i++)
+                for (int y = 0; y < ResiliencyBytes; y++)
+                    bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
+
+            _stream.WriteAt(address + ResiliencyIndex, bytes, 0, bytes.Length);
+        }
+
+        private void CheckAllSectors()
+        {
+
+        }
+
         void IDisposable.Dispose() => Close();
+
+        internal readonly struct Sector : IDisposable
+        {
+            private readonly FileSystem _fileSystem;
+            public long Address { get; }
+
+            public Sector(FileSystem fileSystem, long address)
+            {
+                _fileSystem = fileSystem;
+                Address = address;
+            }
+
+            public void Dispose()
+            {
+                _fileSystem.UpdateResiliancy(Address);
+            }
+        }
     }
 }

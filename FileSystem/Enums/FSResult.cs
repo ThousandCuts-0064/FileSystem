@@ -18,6 +18,7 @@
         FormatMismatch,
 
         RootHasNoParent,
-        NotEnoughSpace
+        NotEnoughSpace,
+        BadSectorFound,
     }
 }

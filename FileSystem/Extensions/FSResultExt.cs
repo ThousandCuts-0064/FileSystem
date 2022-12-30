@@ -40,6 +40,7 @@ namespace FileSystemNS
 
                 case FSResult.RootHasNoParent:       return "Tried to access the parent of the root.";
                 case FSResult.NotEnoughSpace:        return "There is not enough space in the file system.";
+                case FSResult.BadSectorFound:        return "Bad sector was found.";
 
                 default: throw new NotImplementedException();
             }
