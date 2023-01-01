@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using CustomQuery;
 using CustomCollections;
-using static FileSystemNS.Constants;
 using Core;
 using Text;
+using static FileSystemNS.Constants;
 
 namespace FileSystemNS
 {
@@ -37,21 +37,25 @@ namespace FileSystemNS
                 ValidatedName(null, name),
                 0);
 
-            fileSystem.SerializeProperties(directory);
+            var sector = directory.GetSector();
+            sector.SetProperties(directory);
+            sector.UpdateResiliancy();
             return directory;
         }
 
         internal static Directory LoadRoot(FileSystem fileSystem)
         {
+            var sector = fileSystem.GetSector(fileSystem.RootAddress);
+
             Directory directory = new Directory(
                 fileSystem ?? throw new ArgumentNullException(nameof(fileSystem)),
                 null,
                 fileSystem.RootAddress,
                 ObjectFlags.SysDir,
-                fileSystem.GetNameAt(fileSystem.RootAddress),
-                fileSystem.GetByteCountAt(fileSystem.RootAddress));
+                sector.Name,
+                sector.ByteCount);
 
-            fileSystem.DeserializeAllInfoBytes(directory);
+            sector.TryDeserializeLinksTo(directory);
             return directory;
         }
 
@@ -250,12 +254,14 @@ namespace FileSystemNS
             if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new directory and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
-            directory = new Directory(FileSystem, this, FileSystem.CreateSubdirectory(this), ObjectFlags.Directory, name, 0);
+            var sector = FileSystem.CreateSubdirectory(this);
+            directory = new Directory(FileSystem, this, sector.Address, ObjectFlags.Directory, name, 0);
             _subDirectories.Add(directory);
             ByteCount += ADDRESS_BYTES;
             _files.CycleLeft();
 
-            FileSystem.SerializeProperties(directory);
+            sector.SetProperties(directory);
+            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -280,11 +286,13 @@ namespace FileSystemNS
             if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new file and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
-            file = new File(FileSystem, this, FileSystem.CreatFile(this), ObjectFlags.None, name, 0);
+            var sector = FileSystem.CreatFile(this);
+            file = new File(FileSystem, this, sector.Address, ObjectFlags.None, name, 0);
             _files.Add(file);
             ByteCount += ADDRESS_BYTES;
 
-            FileSystem.SerializeProperties(file);
+            sector.SetProperties(file);
+            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -341,7 +349,12 @@ namespace FileSystemNS
             ByteCount -= ADDRESS_BYTES;
             _files.CycleRight();
 
-            FileSystem.SerializeByteCount(this);
+            var sector = FileSystem.GetSector(Address);
+            if (sector.IsBad)
+                return FSResult.BadSectorFound;
+
+            sector.ByteCount = ByteCount;
+            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -366,7 +379,12 @@ namespace FileSystemNS
             _files.RemoveAt(index);
             ByteCount -= ADDRESS_BYTES;
 
-            FileSystem.SerializeByteCount(this);
+            var sector = FileSystem.GetSector(Address);
+            if (sector.IsBad)
+                return FSResult.BadSectorFound;
+
+            sector.ByteCount = ByteCount;
+            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -378,23 +396,27 @@ namespace FileSystemNS
                 : result;
         }
 
-        public override void Clear()
+        public override FSResult Clear()
         {
-            base.Clear();
+            var result = base.Clear();
+            if (result != FSResult.Success)
+                return result;
+
             _subDirectories.Clear();
             _files.Clear();
+            return result;
         }
 
         internal override void DeserializeBytes(byte[] bytes)
         {
             int addressCount = bytes.Length / ADDRESS_BYTES;
+            FileSystem.Sector sector;
             ObjectFlags flags;
-            long address;
             int i = 0;
             while (i < addressCount)
             {
-                address = bytes.GetLong(i++ * ADDRESS_BYTES);
-                flags = FileSystem.GetObjectFlagsAt(address);
+                sector = FileSystem.GetSector(bytes.GetLong(i++ * ADDRESS_BYTES));
+                flags = sector.ObjectFlags;
                 if (!flags.HasFlag(ObjectFlags.Directory))
                 {
                     AddFile();
@@ -404,18 +426,18 @@ namespace FileSystemNS
                 var dir = new Directory(
                     FileSystem,
                     this,
-                    address,
+                    sector.Address,
                     flags,
-                    FileSystem.GetNameAt(address),
-                    FileSystem.GetByteCountAt(address));
+                    sector.Name,
+                    sector.ByteCount);
                 _subDirectories.Add(dir);
-                FileSystem.DeserializeAllInfoBytes(dir);
+                sector.TryDeserializeLinksTo(dir);
             }
 
             while (i < addressCount)
             {
-                address = bytes.GetLong(i++ * ADDRESS_BYTES);
-                flags = FileSystem.GetObjectFlagsAt(address);
+                sector = FileSystem.GetSector(bytes.GetLong(i++ * ADDRESS_BYTES));
+                flags = sector.ObjectFlags;
                 AddFile();
             }
 
@@ -423,10 +445,10 @@ namespace FileSystemNS
                 _files.Add(new File(
                     FileSystem,
                     this,
-                    address,
+                    sector.Address,
                     flags,
-                    FileSystem.GetNameAt(address),
-                    FileSystem.GetByteCountAt(address)));
+                    sector.Name,
+                    sector.ByteCount));
         }
 
         private protected override byte[] OnSerializeBytes()

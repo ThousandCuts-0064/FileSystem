@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class NodeDifferentCollectionException : ArgumentException
     {
         private const string EXCEPTION = "The node was from different collection.";

@@ -7,7 +7,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    [DebuggerDisplay(COLLECTION_DISP)]
+    [DebuggerDisplay(COLLECTION_DISPLAY)]
     public class LinkedList_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
         public LinkedListNode_<T> First { get; private set; }

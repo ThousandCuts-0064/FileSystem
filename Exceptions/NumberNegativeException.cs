@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class NumberNegativeException : ArgumentException
     {
         private const string EXCEPTION = "Number must not be negative.";

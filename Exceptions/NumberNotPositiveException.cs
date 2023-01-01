@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class NumberNotPositiveException : ArgumentException
     {
         private const string EXCEPTION = "Number must be possitive.";

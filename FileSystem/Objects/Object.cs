@@ -4,7 +4,6 @@ using System.Diagnostics;
 using CustomCollections;
 using CustomQuery;
 using ExceptionsNS;
-using static Core.Constants;
 using static FileSystemNS.Constants;
 
 namespace FileSystemNS
@@ -85,16 +84,29 @@ namespace FileSystemNS
             Name = name;
             _fullName = null;
 
-            FileSystem.SerializeName(this);
+            var sector = FileSystem.GetSector(Address);
+            if (sector.IsBad)
+                return FSResult.BadSectorFound;
+
+            sector.Name = Name;
+            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
-        public virtual void Clear()
+        public virtual FSResult Clear()
         {
             ByteCount = 0;
+            var sector = FileSystem.GetSector(Address);
+            if (sector.IsBad)
+                return FSResult.BadSectorFound;
+
             FileSystem.FreeSectorsOf(this, false);
-            FileSystem.SerializeByteCount(this);
+            sector.ByteCount = ByteCount;
+            sector.UpdateResiliancy();
+            return FSResult.Success;
         }
+
+        internal FileSystem.Sector GetSector() => FileSystem.GetSector(Address);
 
         internal abstract void DeserializeBytes(byte[] bytes);
 

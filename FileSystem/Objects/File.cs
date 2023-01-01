@@ -38,8 +38,8 @@ namespace FileSystemNS
                     ? FSResult.Success
                     : FSResult.FormatNotSupported;
 
-        public void Save() => FileSystem.SerializeAllInfoBytes(this);
-        public void Load() => FileSystem.DeserializeAllInfoBytes(this);
+        public void Save() => FileSystem.SerializeInfoBytes(this);
+        public void Load() => GetSector().TryDeserializeLinksTo(this);
 
         public override FSResult TrySetName(string name) =>
             base.TrySetName(AttachFormat(name, Format));

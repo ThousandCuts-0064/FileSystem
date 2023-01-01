@@ -7,7 +7,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    [DebuggerDisplay(COLLECTION_DISP)]
+    [DebuggerDisplay(COLLECTION_DISPLAY)]
     public class Stack_<T> : ICollection<T>, IReadOnlyCollection<T>
     {
         private T[] _array;

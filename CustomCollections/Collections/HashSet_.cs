@@ -8,7 +8,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    [DebuggerDisplay(COLLECTION_DISP)]
+    [DebuggerDisplay(COLLECTION_DISPLAY)]
     public class HashSet_<T> : ISet<T>, IReadOnlyCollection<T>
     {
         private readonly IEqualityComparer<T> _comparer;

@@ -7,7 +7,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    [DebuggerDisplay(COLLECTION_DISP)]
+    [DebuggerDisplay(COLLECTION_DISPLAY)]
     public class UnorderedList_<T> : IList<T>, IReadOnlyList<T>
     {
         private T[] _array;

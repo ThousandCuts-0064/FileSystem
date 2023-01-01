@@ -240,92 +240,16 @@ namespace FileSystemNS
             _stream.Close();
         }
 
-        internal ObjectFlags GetObjectFlagsAt(long address) =>
-            (ObjectFlags)_stream.ReadByteAt(address);
+        internal Sector GetSector(long address) =>
+            address % SectorSize == 0
+            ? new Sector(this, address)
+            : throw new ArgumentOutOfRangeException(nameof(address));
 
-        internal void SerializeObjectFlags(Object obj) => SetObjectFlagsAt(obj.Address, obj.ObjectFlags);
-        internal void SetObjectFlagsAt(long address, ObjectFlags objectFlags) =>
-            _stream.WriteByteAt(address, (byte)objectFlags);
-
-        internal string GetNameAt(long address)
-        {
-            byte[] bytes = new byte[NAME_BYTES];
-            _stream.ReadAt(address + NAME_INDEX, bytes, 0, NAME_BYTES);
-            return Encoding.Unicode.GetString(bytes).TrimEnd_('\0');
-        }
-
-        internal void SerializeName(Object obj) => SetNameAt(obj.Address, obj.Name);
-        internal void SetNameAt(long address, string name)
-        {
-            byte[] bytes = new byte[NAME_BYTES];
-            Encoding.Unicode.GetBytes(name, 0, name.Length, bytes, 0);
-            _stream.WriteAt(address + NAME_INDEX, bytes, 0, bytes.Length);
-        }
-
-        internal long GetByteCountAt(long address)
-        {
-            byte[] bytes = new byte[LONG_BYTES];
-            _stream.ReadAt(address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
-            return bytes.GetLong(0);
-        }
-
-        internal void SerializeByteCount(Object obj) => SetByteCountAt(obj.Address, obj.ByteCount);
-        internal void SetByteCountAt(long address, long byteCount)
-        {
-            byte[] bytes = new byte[LONG_BYTES];
-            byteCount.GetBytes(bytes, 0);
-            _stream.WriteAt(address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
-        }
-
-        internal void SerializeProperties(Object obj)
-        {
-            SerializeObjectFlags(obj);
-            SerializeName(obj);
-            SerializeByteCount(obj);
-        }
-
-        internal void DeserializeAllInfoBytes(Object obj) => obj.DeserializeBytes(GetAllInfoBytesAt(obj.Address, checked((int)obj.ByteCount)));
-        internal byte[] GetAllInfoBytesAt(long address, int count)
-        {
-            byte[] bytes = new byte[count];
-            GetAllInfoBytesAt(address, bytes);
-            return bytes;
-        }
-        internal void GetAllInfoBytesAt(long address, byte[] bytes) => GetAllInfoBytesAt(address, bytes, 0, bytes.Length);
-        internal void GetAllInfoBytesAt(long address, byte[] bytes, int index, int count)
-        {
-            int countFirstSector = Math.Min(count, FirstSectorInfoSize);
-            _stream.ReadAt(address + INFO_BYTES_INDEX, bytes, index, countFirstSector);
-            count -= countFirstSector;
-            if (count == 0) return;
-
-            index += countFirstSector;
-            int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
-            byte[] addressBytes = new byte[ADDRESS_BYTES];
-            _stream.ReadAt(address + NextSectorIndex, addressBytes, 0, addressBytes.Length);
-
-            long lastFullSectorAddress = -1;
-            foreach (var currAddress in EnumerateSectors(addressBytes.GetLong(0), fullSectors, false))
-            {
-                _stream.ReadAt(currAddress, bytes, index, SectorInfoSize);
-                index += SectorInfoSize;
-                lastFullSectorAddress = currAddress;
-            }
-
-            _stream.ReadAt(lastFullSectorAddress + NextSectorIndex, addressBytes, 0, addressBytes.Length);
-            _stream.ReadAt(addressBytes.GetLong(0) + remaining, bytes, index, remaining);
-        }
-
-        internal void SerializeAllInfoBytes(Object obj)
+        internal void SerializeInfoBytes(Object obj)
         {
             byte[] bytes = obj.SerializeBytes();
             SetByteCountAt(obj.Address, bytes.Length);
             SetInfoBytesAt(obj.Address + INFO_BYTES_INDEX, bytes);
-        }
-        internal void AppendInfoBytes(Object obj, byte[] bytes)
-        {
-            SetByteCountAt(obj.Address, obj.ByteCount + bytes.Length);
-            SetInfoBytesAt(EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out long index)).Last_() + index, bytes);
         }
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes) => SetInfoBytesAt(byteAddress, bytes, 0, bytes.Length);
         internal void SetInfoBytesAt(long byteAddress, byte[] bytes, int index, int count)
@@ -363,7 +287,7 @@ namespace FileSystemNS
             AllocateSectorAt(freeAddress);
         }
 
-        internal long CreateSubdirectory(Directory parent)
+        internal Sector CreateSubdirectory(Directory parent)
         {
             long newDirSector;
             SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
@@ -422,10 +346,10 @@ namespace FileSystemNS
             newDirSector.GetBytes(bytes, 0);
             _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
             AllocateSectorAt(newDirSector);
-            return newDirSector;
+            return GetSector(newDirSector);
         }
 
-        internal long CreatFile(Directory parent)
+        internal Sector CreatFile(Directory parent)
         {
             SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
             byte[] bytes = new byte[ADDRESS_BYTES];
@@ -451,7 +375,7 @@ namespace FileSystemNS
             newFileSector.GetBytes(bytes, 0);
             _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
             AllocateSectorAt(newFileSector);
-            return newFileSector;
+            return GetSector(newFileSector);
         }
 
         internal void RemoveSubdirectory(Directory parent, int subdirIndex)
@@ -596,17 +520,20 @@ namespace FileSystemNS
             byte[] sectorBytes = new byte[SectorSize];
             _stream.ReadAt(address, sectorBytes, 0, sectorBytes.Length);
             byte[] bytes = new byte[ResiliencyBytes];
+
             for (int i = 0; i < RESILIENCY_FACTOR; i++)
                 for (int y = 0; y < ResiliencyBytes; y++)
                     bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
 
             for (int i = 0; i < bytes.Length; i++)
                 if (bytes[i] != 0)
-                    return false;
+                {
+                    _badSectors.Add(address);
+                    ValidateSectors();
+                    return true;
+                }
 
-            _badSectors.Add(address);
-            CheckAllSectors();
-            return true;
+            return false;
         }
 
         private void UpdateResiliancy(long address)
@@ -621,27 +548,134 @@ namespace FileSystemNS
             _stream.WriteAt(address + ResiliencyIndex, bytes, 0, bytes.Length);
         }
 
-        private void CheckAllSectors()
+
+        private void ValidateSectors()
         {
 
         }
 
         void IDisposable.Dispose() => Close();
 
-        internal readonly struct Sector : IDisposable
+        internal readonly ref struct Sector
         {
-            private readonly FileSystem _fileSystem;
+            private readonly FileSystem _fs;
+            private FileStream Stream => _fs._stream;
+            public bool IsBad { get; }
             public long Address { get; }
+
+            public ObjectFlags ObjectFlags
+            {
+                get => IsBad
+                    ? throw new BadSectorException(Address)
+                    : (ObjectFlags)Stream.ReadByteAt(Address);
+                set
+                {
+                    if (IsBad) throw new BadSectorException(Address);
+
+                    Stream.WriteByteAt(Address, (byte)value);
+                }
+            }
+
+            public string Name
+            {
+                get
+                {
+                    if (IsBad) throw new BadSectorException(Address);
+
+                    byte[] bytes = new byte[NAME_BYTES];
+                    Stream.ReadAt(Address + NAME_INDEX, bytes, 0, NAME_BYTES);
+                    return Encoding.Unicode.GetString(bytes).TrimEnd_('\0');
+                }
+                set
+                {
+                    if (IsBad) throw new BadSectorException(Address);
+
+                    byte[] bytes = new byte[NAME_BYTES];
+                    Encoding.Unicode.GetBytes(value, 0, value.Length, bytes, 0);
+                    Stream.WriteAt(Address + NAME_INDEX, bytes, 0, bytes.Length);
+                }
+            }
+
+            public long ByteCount
+            {
+                get
+                {
+                    if (IsBad) throw new BadSectorException(Address);
+
+                    byte[] bytes = new byte[LONG_BYTES];
+                    Stream.ReadAt(Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
+                    return bytes.GetLong(0);
+                }
+                set
+                {
+                    if (IsBad) throw new BadSectorException(Address);
+
+                    byte[] bytes = new byte[LONG_BYTES];
+                    value.GetBytes(bytes, 0);
+                    Stream.WriteAt(Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
+                }
+            }
+
+            public Sector Next
+            {
+                get
+                {
+                    byte[] bytes = new byte[ADDRESS_BYTES];
+                    Stream.ReadAt(Address + _fs.NextSectorIndex, bytes, 0, bytes.Length);
+                    return new Sector(_fs, bytes.GetLong(0));
+                }
+            }
 
             public Sector(FileSystem fileSystem, long address)
             {
-                _fileSystem = fileSystem;
+                _fs = fileSystem;
                 Address = address;
+                IsBad = _fs.IsBadSector(Address);
+                if (IsBad)
+                    _fs.ValidateSectors();
             }
 
-            public void Dispose()
+            public void SetProperties(Object obj)
             {
-                _fileSystem.UpdateResiliancy(Address);
+                if (IsBad) throw new BadSectorException(Address);
+
+                ObjectFlags = obj.ObjectFlags;
+                Name = obj.Name;
+                ByteCount = obj.ByteCount;
+            }
+
+            public bool TryDeserializeLinksTo(Object obj)
+            {
+                if (IsBad) throw new BadSectorException(Address);
+
+                int count = checked((int)obj.ByteCount);
+                byte[] bytes = new byte[count];
+                Sector sector = this;
+
+                int countFirstSector = Math.Min(count, _fs.FirstSectorInfoSize);
+                Stream.ReadAt(INFO_BYTES_INDEX, bytes, 0, countFirstSector);
+                count -= countFirstSector;
+                if (count == 0) return true;
+
+                int index = countFirstSector;
+                int fullSectors = Math.DivRem(count, _fs.SectorInfoSize, out int remaining);
+
+                for (int i = 1; i < fullSectors; i++)
+                {
+                    Stream.ReadAt(sector.Address, bytes, index, _fs.SectorInfoSize);
+                    sector = sector.Next;
+                    if (sector.IsBad)
+                        return false;
+                }
+                Stream.ReadAt(sector.Address, bytes, index, remaining);
+                return true;
+            }
+
+            public void UpdateResiliancy()
+            {
+                if (IsBad) throw new BadSectorException(Address);
+
+                _fs.UpdateResiliancy(Address);
             }
         }
     }

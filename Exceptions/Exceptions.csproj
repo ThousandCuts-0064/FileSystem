@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BadSectorExceptions.cs" />
     <Compile Include="CollectionEmptyException.cs" />
     <Compile Include="ArrayTooShortExcpetion.cs" />
     <Compile Include="IndexOutOfBoundsException.cs" />

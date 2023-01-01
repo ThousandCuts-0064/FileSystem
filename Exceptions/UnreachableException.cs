@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class UnreachableException : Exception
     {
         private const string EXCEPTION = "This instruction was tought to be unreachable.";

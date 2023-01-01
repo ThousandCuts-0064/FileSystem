@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class CollectionEmptyException : ArgumentException
     {
         private const string EXCEPTION = "Collection cannot be empty.";

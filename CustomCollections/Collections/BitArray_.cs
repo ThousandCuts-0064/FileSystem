@@ -9,7 +9,7 @@ using static CustomCollections.Constants;
 
 namespace CustomCollections
 {
-    [DebuggerDisplay(COLLECTION_DISP)]
+    [DebuggerDisplay(COLLECTION_DISPLAY)]
     public class BitArray_ : IList<bool>, IReadOnlyList<bool>
     {
         private readonly byte[] _bytes;

@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class ArrayTooShortExcpetion : ArgumentException
     {
         private const string EXCEPTION = "Destination array was too short.";

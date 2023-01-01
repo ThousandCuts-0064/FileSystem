@@ -3,6 +3,7 @@ using System.Runtime.Serialization;
 
 namespace ExceptionsNS
 {
+    [Serializable]
     public class IndexOutOfBoundsException : ArgumentException
     {
         private const string EXCEPTION = "Index was outside of bounds.";
