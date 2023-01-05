@@ -17,9 +17,10 @@ namespace FileSystemNS
     {
         private const int RESILIENCY_FACTOR = 64;
 
+        private readonly HashSet_<long> _badSectors;
+        private readonly byte[] _reuseAddressArray = new byte[ADDRESS_BYTES];
         private readonly FileStream _stream;
         private readonly BitArray_ _bitMap;
-        private readonly HashSet_<long> _badSectors;
 
         internal long SectorCount { get; }
         internal long RootAddress { get; }
@@ -240,142 +241,130 @@ namespace FileSystemNS
             _stream.Close();
         }
 
-        internal Sector GetSector(long address) =>
-            address % SectorSize == 0
-            ? new Sector(this, address)
-            : throw new ArgumentOutOfRangeException(nameof(address));
+        internal bool TryGetSector(long address, out Sector sector) =>
+            Sector.TryGet(this, address, out sector);
 
-        internal void SerializeInfoBytes(Object obj)
+        internal FSResult TryCreateDirectory(Directory parent, out Sector sector)
         {
-            byte[] bytes = obj.SerializeBytes();
-            SetByteCountAt(obj.Address, bytes.Length);
-            SetInfoBytesAt(obj.Address + INFO_BYTES_INDEX, bytes);
-        }
-        internal void SetInfoBytesAt(long byteAddress, byte[] bytes) => SetInfoBytesAt(byteAddress, bytes, 0, bytes.Length);
-        internal void SetInfoBytesAt(long byteAddress, byte[] bytes, int index, int count)
-        {
-            if (count == 0) return;
+            sector = new Sector();
+            if (!parent.TryGetSector(out Sector parentSector))
+                return FSResult.BadSectorFound;
 
-            long FirstSectorFreeSpace = SectorInfoSize - 1 - byteAddress % SectorInfoSize;
-            int countFirstSector = (int)Math.Min(count, FirstSectorFreeSpace);
-            _stream.WriteAt(byteAddress, bytes, index, countFirstSector);
-            count -= countFirstSector;
-            if (count == 0) return;
-
-            index += countFirstSector;
-            int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
-
-            byte[] addressBytes = new byte[ADDRESS_BYTES];
-            long lastFreeAddress = byteAddress + FirstSectorFreeSpace;
-            long freeAddress;
-
-            for (int i = 0; i < fullSectors; i++)// TODO: Check for avalible space
-            {
-                freeAddress = FindFreeSector();
-                freeAddress.GetBytes(addressBytes, 0);
-                _stream.WriteAt(lastFreeAddress, addressBytes, index, ADDRESS_BYTES);
-                _stream.WriteAt(freeAddress, bytes, index, SectorInfoSize);
-                index += SectorInfoSize;
-                AllocateSectorAt(freeAddress);
-                lastFreeAddress = freeAddress;
-            }
-
-            freeAddress = FindFreeSector();
-            freeAddress.GetBytes(addressBytes, 0);
-            _stream.WriteAt(lastFreeAddress, addressBytes, index, ADDRESS_BYTES);
-            _stream.WriteAt(freeAddress, bytes, index, remaining);
-            AllocateSectorAt(freeAddress);
-        }
-
-        internal Sector CreateSubdirectory(Directory parent)
-        {
-            long newDirSector;
-            SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
-            byte[] bytes = new byte[ADDRESS_BYTES];
-
+            Sector lastSector;
+            Sector dirWriteSector;
+            Sector nextSector = new Sector(); // Only used if new sector is needed for expansion
             int dirSectorCount = FullSectorsAndByteIndex(parent.SubDirectories.Count * ADDRESS_BYTES, out long dirIndex);
-            long dirSector;// = EnumerateSectors(parent.Address, dirSectorCount).Last_();
-            long dirWriteAddress;// = dirSector + dirIndex;
 
             if (parent.Files.Count == 0)
             {
                 if (dirIndex == 0)
                 {
-                    long lastSector = EnumerateSectors(parent.Address, dirSectorCount - 1).Last_();
-                    long addressToNextSector = lastSector + NextSectorIndex;
+                    if (!parentSector.TryGetLast(dirSectorCount - 1, out lastSector))
+                        return FSResult.BadSectorFound;
 
-                    long nextSector = FindFreeSector();
-                    nextSector.GetBytes(bytes, 0);
-                    _stream.WriteAt(addressToNextSector, bytes, 0, bytes.Length);
-                    AllocateSectorAt(nextSector);
-                    dirWriteAddress = nextSector;
+                    if (!sector.TryFindFree(out nextSector))
+                        return FSResult.NotEnoughSpace;
+
+                    lastSector.SetNext(nextSector);
+                    lastSector.UpdateResiliancy();
+                    lastSector = nextSector;
+                    nextSector.Allocate();
                 }
-                else
-                    dirWriteAddress = EnumerateSectors(parent.Address, dirSectorCount).Last_() + dirIndex;
+                else if (!parentSector.TryGetLast(dirSectorCount, out lastSector))
+                    return FSResult.BadSectorFound;
+
+                dirWriteSector = lastSector;
             }
             else
             {
-                dirSector = EnumerateSectors(parent.Address, dirSectorCount).Last_();
-                dirWriteAddress = dirSector + dirIndex;
+                if (!parentSector.TryGetLast(dirSectorCount, out dirWriteSector))
+                    return FSResult.BadSectorFound;
+
                 int fileSectorCount = FullSectorsAndByteIndex(
                             dirIndex,
                             SectorInfoSize - dirIndex,
                             parent.Files.Count * ADDRESS_BYTES,
                             out long fileIndex);
-                long fileWriteAddress;// = fileSector + fileIndex;
 
                 if (fileIndex == 0)
                 {
-                    long lastSector = EnumerateSectors(dirSector, fileSectorCount - 1).Last_();
-                    long addressToNextSector = lastSector + NextSectorIndex;
+                    if (!dirWriteSector.TryGetLast(fileSectorCount - 1, out lastSector))
+                        return FSResult.BadSectorFound;
 
-                    long nextSector = FindFreeSector();
-                    nextSector.GetBytes(bytes, 0);
-                    _stream.WriteAt(addressToNextSector, bytes, 0, bytes.Length);
-                    AllocateSectorAt(nextSector);
-                    fileWriteAddress = nextSector;
+                    if (sector.TryFindFree(out nextSector))
+                        return FSResult.NotEnoughSpace;
+
+                    lastSector.SetNext(nextSector);
+                    lastSector.UpdateResiliancy();
+                    lastSector = nextSector;
+                    nextSector.Allocate();
                 }
-                else
-                    fileWriteAddress = EnumerateSectors(dirSector, fileSectorCount).Last_() + fileIndex;
+                else if (!dirWriteSector.TryGetLast(fileSectorCount, out lastSector))
+                    return FSResult.BadSectorFound;
 
-                _stream.ReadAt(dirWriteAddress, bytes, 0, bytes.Length);
-                _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+                _stream.ReadAt(dirWriteSector.Address + dirIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+                _stream.WriteAt(lastSector.Address + fileIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+                lastSector.UpdateResiliancy();
             }
 
-            newDirSector = FindFreeSector();
-            newDirSector.GetBytes(bytes, 0);
-            _stream.WriteAt(dirWriteAddress, bytes, 0, bytes.Length);
-            AllocateSectorAt(newDirSector);
-            return GetSector(newDirSector);
+            if (!sector.TryFindFree(out sector))
+            {
+                if (!nextSector.IsEmpty)
+                    nextSector.Free();
+
+                return FSResult.NotEnoughSpace;
+            }
+
+            sector.Address.GetBytes(_reuseAddressArray, 0);
+            _stream.WriteAt(dirWriteSector.Address + dirIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+            dirWriteSector.UpdateResiliancy();
+            sector.Allocate();
+            parentSector.ByteCount = parent.ByteCount + ADDRESS_BYTES;
+            parentSector.UpdateResiliancy();
+            return FSResult.Success;
         }
 
-        internal Sector CreatFile(Directory parent)
+        internal FSResult TryCreateFile(Directory parent, out Sector sector)
         {
-            SetByteCountAt(parent.Address, parent.ByteCount + ADDRESS_BYTES);
-            byte[] bytes = new byte[ADDRESS_BYTES];
+            sector = new Sector();
+            if (!parent.TryGetSector(out Sector parentSector))
+                return FSResult.BadSectorFound;
 
+            Sector lastSector;
+            Sector nextSector = new Sector(); // Only used if new sector is needed for expansion
             int sectorCount = FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex);
-            long fileWriteAddress;
 
             if (fileIndex == 0)
             {
-                long lastSector = EnumerateSectors(parent.Address, sectorCount - 1).Last_();
-                long addressToNextSector = lastSector + NextSectorIndex;
+                if (!parentSector.TryGetLast(sectorCount - 1, out lastSector))
+                    return FSResult.BadSectorFound;
 
-                long nextSector = FindFreeSector();
-                nextSector.GetBytes(bytes, 0);
-                _stream.WriteAt(addressToNextSector, bytes, 0, bytes.Length);
-                AllocateSectorAt(nextSector);
-                fileWriteAddress = nextSector;
+                if (!lastSector.TryFindFree(out nextSector))
+                    return FSResult.NotEnoughSpace;
+
+                lastSector.SetNext(nextSector);
+                lastSector.UpdateResiliancy();
+                lastSector = nextSector;
+                nextSector.Allocate();
             }
-            else
-                fileWriteAddress = EnumerateSectors(parent.Address, sectorCount).Last_() + fileIndex;
+            else if (!parentSector.TryGetLast(sectorCount, out lastSector))
+                return FSResult.BadSectorFound;
 
-            long newFileSector = FindFreeSector();
-            newFileSector.GetBytes(bytes, 0);
-            _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
-            AllocateSectorAt(newFileSector);
-            return GetSector(newFileSector);
+            if (!sector.TryFindFree(out sector))
+            {
+                if (!nextSector.IsEmpty)
+                    nextSector.Free();
+
+                return FSResult.NotEnoughSpace;
+            }
+
+            sector.Address.GetBytes(_reuseAddressArray, 0);
+            _stream.WriteAt(lastSector.Address + fileIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+            lastSector.UpdateResiliancy();
+            sector.Allocate();
+            parentSector.ByteCount = parent.ByteCount + ADDRESS_BYTES;
+            parentSector.UpdateResiliancy();
+            return FSResult.Success;
         }
 
         internal void RemoveSubdirectory(Directory parent, int subdirIndex)
@@ -402,21 +391,35 @@ namespace FileSystemNS
             if (lastFileIndex % SectorSize == 0) FreeSectorAt(lastFileIndex);
         }
 
-        internal void RemoveFile(Directory parent, int fileIndex)
+        internal FSResult RemoveFile(Directory parent, int fileIndex)
         {
-            byte[] bytes = new byte[ADDRESS_BYTES];
-            int fileSectorIndex = FullSectorsAndByteIndex((parent.SubDirectories.Count + fileIndex) * ADDRESS_BYTES, out long fileShortIndex);
-            long fileWriteSector = EnumerateSectors(parent.Address, fileSectorIndex, true).Last_();
-            long fileWriteAddress = fileWriteSector + fileShortIndex;
-            long fileReadAddress = EnumerateSectors(
-                    fileWriteSector,
-                    FullSectorsAndByteIndex(fileShortIndex, SectorInfoSize - fileShortIndex, (parent.Files.Count - 1 - fileIndex) * ADDRESS_BYTES, out long fileReadIndex))
-                .Last_() + fileReadIndex;
+            int fileSectorIndex = FullSectorsAndByteIndex(
+                (parent.SubDirectories.Count + fileIndex) * ADDRESS_BYTES,
+                out long fileWriteIndex);
 
-            _stream.ReadAt(fileReadAddress, bytes, 0, bytes.Length);
-            _stream.WriteAt(fileWriteAddress, bytes, 0, bytes.Length);
+            if (!parent.TryGetSector(out Sector parentSector))
+                return FSResult.BadSectorFound;
 
-            if (fileReadAddress % SectorSize == 0) FreeSectorAt(fileReadAddress);
+            if (!parentSector.TryGetLast(fileSectorIndex, out Sector fileWriteSector))
+                return FSResult.BadSectorFound;
+
+            int remainingSectors = FullSectorsAndByteIndex(
+                fileWriteIndex,
+                SectorInfoSize - fileWriteIndex,
+                (parent.Files.Count - 1 - fileIndex) * ADDRESS_BYTES,
+                out long fileReadIndex);
+
+            if (!fileWriteSector.TryGetLast(remainingSectors, out Sector fileReadSector))
+                return FSResult.BadSectorFound;
+
+            _stream.ReadAt(fileReadSector.Address + fileReadIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+            _stream.WriteAt(fileWriteSector.Address + fileWriteIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
+            fileWriteSector.UpdateResiliancy();
+
+            if (fileReadIndex % SectorSize == 0) fileReadSector.Free();
+            parentSector.ByteCount = parent.ByteCount - ADDRESS_BYTES;
+            parentSector.UpdateResiliancy();
+            return FSResult.Success;
         }
 
         internal void FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object
@@ -427,14 +430,6 @@ namespace FileSystemNS
 
             foreach (long address in EnumerateSectors(obj.Address, FullSectorsAndByteIndex(obj.ByteCount, out _), removeFirst))
                 FreeSectorAt(address);
-        }
-
-        private long FindFreeSector()
-        {
-            int index = _bitMap.IndexOf(false);
-            return index == -1
-                ? throw new OutOfMemoryException("No more free sectors")
-                : index * SectorSize + RootAddress;
         }
 
         private void AllocateSectorAt(long address)
@@ -529,25 +524,13 @@ namespace FileSystemNS
                 if (bytes[i] != 0)
                 {
                     _badSectors.Add(address);
+                    AllocateSectorAt(address);
                     ValidateSectors();
                     return true;
                 }
 
             return false;
         }
-
-        private void UpdateResiliancy(long address)
-        {
-            byte[] sectorBytes = new byte[SectorSize];
-            _stream.ReadAt(address, sectorBytes, 0, sectorBytes.Length);
-            byte[] bytes = new byte[ResiliencyBytes];
-            for (int i = 0; i < RESILIENCY_FACTOR; i++)
-                for (int y = 0; y < ResiliencyBytes; y++)
-                    bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
-
-            _stream.WriteAt(address + ResiliencyIndex, bytes, 0, bytes.Length);
-        }
-
 
         private void ValidateSectors()
         {
@@ -556,40 +539,34 @@ namespace FileSystemNS
 
         void IDisposable.Dispose() => Close();
 
+
+
         internal readonly ref struct Sector
         {
             private readonly FileSystem _fs;
+
+            private byte[] ReuseAddressArray => _fs._reuseAddressArray;
             private FileStream Stream => _fs._stream;
-            public bool IsBad { get; }
-            public long Address { get; }
+            private BitArray_ BitMap => _fs._bitMap;
+            private ushort FirstSectorInfoSize => _fs.FirstSectorInfoSize;
+            private ushort SectorInfoSize => _fs.SectorInfoSize;
 
             public ObjectFlags ObjectFlags
             {
-                get => IsBad
-                    ? throw new BadSectorException(Address)
-                    : (ObjectFlags)Stream.ReadByteAt(Address);
-                set
-                {
-                    if (IsBad) throw new BadSectorException(Address);
-
-                    Stream.WriteByteAt(Address, (byte)value);
-                }
+                get => (ObjectFlags)Stream.ReadByteAt(Address);
+                set => Stream.WriteByteAt(Address, (byte)value);
             }
 
             public string Name
             {
                 get
                 {
-                    if (IsBad) throw new BadSectorException(Address);
-
                     byte[] bytes = new byte[NAME_BYTES];
                     Stream.ReadAt(Address + NAME_INDEX, bytes, 0, NAME_BYTES);
                     return Encoding.Unicode.GetString(bytes).TrimEnd_('\0');
                 }
                 set
                 {
-                    if (IsBad) throw new BadSectorException(Address);
-
                     byte[] bytes = new byte[NAME_BYTES];
                     Encoding.Unicode.GetBytes(value, 0, value.Length, bytes, 0);
                     Stream.WriteAt(Address + NAME_INDEX, bytes, 0, bytes.Length);
@@ -600,82 +577,187 @@ namespace FileSystemNS
             {
                 get
                 {
-                    if (IsBad) throw new BadSectorException(Address);
-
                     byte[] bytes = new byte[LONG_BYTES];
                     Stream.ReadAt(Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                     return bytes.GetLong(0);
                 }
                 set
                 {
-                    if (IsBad) throw new BadSectorException(Address);
-
                     byte[] bytes = new byte[LONG_BYTES];
                     value.GetBytes(bytes, 0);
                     Stream.WriteAt(Address + BYTE_COUNT_INDEX, bytes, 0, bytes.Length);
                 }
             }
 
-            public Sector Next
-            {
-                get
-                {
-                    byte[] bytes = new byte[ADDRESS_BYTES];
-                    Stream.ReadAt(Address + _fs.NextSectorIndex, bytes, 0, bytes.Length);
-                    return new Sector(_fs, bytes.GetLong(0));
-                }
-            }
+            public long Address { get; }
+            public bool IsEmpty => _fs is null;
 
-            public Sector(FileSystem fileSystem, long address)
+            private Sector(FileSystem fileSystem, long address)
             {
                 _fs = fileSystem;
                 Address = address;
-                IsBad = _fs.IsBadSector(Address);
-                if (IsBad)
-                    _fs.ValidateSectors();
+            }
+
+            public static bool TryGet(FileSystem fileSystem, long address, out Sector sector)
+            {
+                if (fileSystem is null) throw new ArgumentNullException(nameof(fileSystem));
+                if (address % fileSystem.SectorSize != 0) throw new ArgumentOutOfRangeException(nameof(address));
+
+                if (fileSystem.IsBadSector(address))
+                {
+                    sector = new Sector();
+                    return false;
+                }
+
+                sector = new Sector(fileSystem, address);
+                return true;
+            }
+
+            public bool TryGetNext(out Sector sector)
+            {
+                Stream.ReadAt(Address + _fs.NextSectorIndex, ReuseAddressArray, 0, ADDRESS_BYTES);
+                return TryGet(_fs, ReuseAddressArray.GetLong(0), out sector);
+            }
+
+            public void SetNext(Sector next)
+            {
+                next.Address.GetBytes(ReuseAddressArray, 0);
+                Stream.WriteAt(Address + _fs.NextSectorIndex, ReuseAddressArray, 0, ADDRESS_BYTES);
+            }
+
+            public bool TryGetLast(int count, out Sector sector)
+            {
+                sector = this;
+                while (count-- > 0)
+                    if (!sector.TryGetNext(out sector))
+                        return false;
+                return true;
             }
 
             public void SetProperties(Object obj)
             {
-                if (IsBad) throw new BadSectorException(Address);
-
                 ObjectFlags = obj.ObjectFlags;
                 Name = obj.Name;
                 ByteCount = obj.ByteCount;
             }
 
-            public bool TryDeserializeLinksTo(Object obj)
+            public bool TryDeserializeChainTo(Object obj)
             {
-                if (IsBad) throw new BadSectorException(Address);
-
                 int count = checked((int)obj.ByteCount);
                 byte[] bytes = new byte[count];
                 Sector sector = this;
 
-                int countFirstSector = Math.Min(count, _fs.FirstSectorInfoSize);
+                int countFirstSector = Math.Min(count, FirstSectorInfoSize);
                 Stream.ReadAt(INFO_BYTES_INDEX, bytes, 0, countFirstSector);
                 count -= countFirstSector;
                 if (count == 0) return true;
 
                 int index = countFirstSector;
-                int fullSectors = Math.DivRem(count, _fs.SectorInfoSize, out int remaining);
+                int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
 
-                for (int i = 1; i < fullSectors; i++)
+                for (int i = 0; i < fullSectors; i++)
                 {
-                    Stream.ReadAt(sector.Address, bytes, index, _fs.SectorInfoSize);
-                    sector = sector.Next;
-                    if (sector.IsBad)
+                    Stream.ReadAt(sector.Address, bytes, index, SectorInfoSize);
+                    if (!TryGetNext(out sector))
                         return false;
                 }
                 Stream.ReadAt(sector.Address, bytes, index, remaining);
+                obj.TryDeserializeBytes(bytes);
+                return true;
+            }
+
+            public bool TrySerializeChainFrom(Object obj)
+            {
+                byte[] bytes = obj.SerializeBytes();
+                int count = bytes.Length;
+                ByteCount = count;
+
+                if (count == 0) return true;
+
+                int index = 0;
+                int countFirstSector = Math.Min(count, FirstSectorInfoSize);
+                Stream.WriteAt(INFO_BYTES_INDEX, bytes, index, countFirstSector);
+                count -= countFirstSector;
+
+                if (count == 0) return true;
+
+                index += countFirstSector;
+                int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
+
+                Sector sector;
+
+                for (int i = 0; i < fullSectors; i++)
+                {
+                    if (!TryFindFree(out sector))
+                    {
+                        FreeChain(i);
+                        return false;
+                    }
+                    Stream.WriteAt(sector.Address, bytes, index, SectorInfoSize);
+                    index += SectorInfoSize;
+                    Allocate();
+                }
+
+                if (remaining == 0) return true;
+
+                if (!TryFindFree(out sector))
+                {
+                    FreeChain(fullSectors + 1);
+                    return false;
+                }
+                Stream.WriteAt(sector.Address, bytes, index, remaining);
+                Allocate();
                 return true;
             }
 
             public void UpdateResiliancy()
             {
-                if (IsBad) throw new BadSectorException(Address);
+                byte[] sectorBytes = new byte[_fs.SectorSize];
+                Stream.ReadAt(Address, sectorBytes, 0, sectorBytes.Length);
+                byte[] bytes = new byte[_fs.ResiliencyBytes];
+                for (int i = 0; i < RESILIENCY_FACTOR; i++)
+                    for (int y = 0; y < _fs.ResiliencyBytes; y++)
+                        bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
 
-                _fs.UpdateResiliancy(Address);
+                Stream.WriteAt(Address + _fs.ResiliencyIndex, bytes, 0, bytes.Length);
+            }
+
+            public bool TryFindFree(out Sector sector)
+            {
+                int index = 0;
+                bool isBad;
+                do
+                {
+                    index = BitMap.IndexOf(false, index);
+                    isBad = !TryGet(_fs, index, out sector);
+                }
+                while (index != -1 && isBad);
+                return index != -1;
+            }
+
+            public void Allocate() => _fs.AllocateSectorAt(Address);
+
+            public void Free()
+            {
+                int index = (int)((Address - _fs.RootAddress) / _fs.SectorSize);
+                int byteIndex = index / BYTE_BITS;
+
+                if (index >= _fs.SectorCount) throw new ArgumentOutOfRangeException(nameof(Address), $"{nameof(Address)} exceeds the file system capacity.");
+
+                BitMap[index] = BitMap[index]
+                    ? false
+                    : throw new ArgumentException("Sector is already free.", nameof(Address));
+                Stream.WriteByteAt(BITMAP_INDEX + byteIndex, BitMap.GetByte(byteIndex));
+            }
+
+            public void FreeChain(int count)
+            {
+                Sector sector = this;
+                while (count-- > 0)
+                {
+                    sector.Free();
+                    sector.TryGetNext(out sector);
+                }
             }
         }
     }

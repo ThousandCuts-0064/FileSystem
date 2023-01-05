@@ -84,8 +84,7 @@ namespace FileSystemNS
             Name = name;
             _fullName = null;
 
-            var sector = FileSystem.GetSector(Address);
-            if (sector.IsBad)
+            if (!FileSystem.TryGetSector(Address, out var sector))
                 return FSResult.BadSectorFound;
 
             sector.Name = Name;
@@ -96,8 +95,7 @@ namespace FileSystemNS
         public virtual FSResult Clear()
         {
             ByteCount = 0;
-            var sector = FileSystem.GetSector(Address);
-            if (sector.IsBad)
+            if (!FileSystem.TryGetSector(Address, out var sector))
                 return FSResult.BadSectorFound;
 
             FileSystem.FreeSectorsOf(this, false);
@@ -106,18 +104,18 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        internal FileSystem.Sector GetSector() => FileSystem.GetSector(Address);
+        internal bool TryGetSector(out FileSystem.Sector sector) => FileSystem.TryGetSector(Address, out sector);
 
-        internal abstract void DeserializeBytes(byte[] bytes);
+        internal abstract bool TryDeserializeBytes(byte[] bytes);
 
         internal byte[] SerializeBytes()
         {
-            byte[] bytes = OnSerializeBytes();
+            byte[] bytes = GetSerializedBytes();
             ByteCount = bytes.Length;
             return bytes;
         }
 
-        private protected abstract byte[] OnSerializeBytes();
+        private protected abstract byte[] GetSerializedBytes();
 
         private protected void RecursiveResetFullName(Directory currDir)
         {

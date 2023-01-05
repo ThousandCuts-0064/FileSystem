@@ -284,7 +284,7 @@ namespace UI
                                     .IsError(Console.WriteLine, faultedName))
                                 break;
 
-                            file.Load();
+                            file.TryLoad();
                             if (file.Object is null)
                                 continue;
 
@@ -331,9 +331,9 @@ namespace UI
                                 break;
                             }
 
-                            file.Load();
+                            file.TryLoad();
                             file.TrySetObject((string)file.Object + (args.Length == 2 ? args[1] : "") + '\n');
-                            file.Save();
+                            file.TrySave();
 
                             continue;
                         }
@@ -553,7 +553,7 @@ namespace UI
                             if (file.TrySetObject(obj)
                                     .IsError(Console.WriteLine))
                                 throw new UnreachableException("File format should have been the same.");
-                            file.Save();
+                            file.TrySave();
 
                             continue;
                         }
@@ -589,7 +589,7 @@ namespace UI
                                 break;
                             }
 
-                            file.Load();
+                            file.TryLoad();
                             switch (file.Object)
                             {
                                 case null:

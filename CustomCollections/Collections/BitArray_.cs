@@ -86,11 +86,27 @@ namespace CustomCollections
         }
 
         public bool Contains(bool item) => IndexOf(item) != -1;
-        public int IndexOf(bool item)
+        public int IndexOf(bool item) => IndexOf(item, 0);
+        public int IndexOf(bool item, int startIndex)
         {
             byte val = item ? byte.MinValue : byte.MaxValue;
-            int i = 0;
-            int fullBytes = Math.DivRem(Count, BYTE_BITS, out int leftover);
+            int i = Math.DivRem(startIndex, BYTE_BITS, out int leftover);
+            int fullBytes = Math.DivRem(Count, BYTE_BITS, out int remaining);
+
+            if (_bytes[i] != val)
+            {
+                if (item)
+                {
+                    for (int y = leftover; y < BYTE_BITS; y++)
+                        if ((_bytes[i] & 1 << BYTE_LAST_BIT - y) != 0)
+                            return i * BYTE_BITS + y;
+                }
+                else
+                    for (int y = leftover; y < BYTE_BITS; y++)
+                        if ((_bytes[i] & 1 << BYTE_LAST_BIT - y) == 0)
+                            return i * BYTE_BITS + y;
+            }
+            i++;
 
             while (i < fullBytes)
             {
@@ -109,18 +125,18 @@ namespace CustomCollections
                 }
                 i++;
             }
-            if (leftover == 0) return -1;
+            if (remaining == 0) return -1;
 
             byte last = _bytes[_bytes.Length - 1];
 
             if (item)
             {
-                for (int y = 0; y < leftover; y++)
+                for (int y = 0; y < remaining; y++)
                     if ((last & 1 << BYTE_LAST_BIT - y) != 0)
                         return i * BYTE_BITS + y;
             }
             else
-                for (int y = 0; y < leftover; y++)
+                for (int y = 0; y < remaining; y++)
                     if ((last & 1 << BYTE_LAST_BIT - y) == 0)
                         return i * BYTE_BITS + y;
 
