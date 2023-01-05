@@ -37,7 +37,7 @@ namespace FileSystemNS
                 ValidatedName(null, name),
                 0);
 
-            var sector = directory.GetSector();
+            directory.TryGetSector(out var sector);
             sector.SetProperties(directory);
             sector.UpdateResiliancy();
             return directory;
@@ -45,7 +45,7 @@ namespace FileSystemNS
 
         internal static Directory LoadRoot(FileSystem fileSystem)
         {
-            var sector = fileSystem.GetSector(fileSystem.RootAddress);
+            fileSystem.TryGetSector(fileSystem.RootAddress, out var sector);
 
             Directory directory = new Directory(
                 fileSystem ?? throw new ArgumentNullException(nameof(fileSystem)),
@@ -55,7 +55,7 @@ namespace FileSystemNS
                 sector.Name,
                 sector.ByteCount);
 
-            sector.TryDeserializeLinksTo(directory);
+            sector.TryDeserializeChainTo(directory);
             return directory;
         }
 
@@ -254,7 +254,9 @@ namespace FileSystemNS
             if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new directory and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
-            var sector = FileSystem.CreateSubdirectory(this);
+            result = FileSystem.TryCreateDirectory(this, out var sector);
+            if (result != FSResult.Success) return result;
+
             directory = new Directory(FileSystem, this, sector.Address, ObjectFlags.Directory, name, 0);
             _subDirectories.Add(directory);
             ByteCount += ADDRESS_BYTES;
@@ -286,7 +288,9 @@ namespace FileSystemNS
             if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new file and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
-            var sector = FileSystem.CreatFile(this);
+            result = FileSystem.TryCreateFile(this, out var sector);
+            if (result != FSResult.Success) return result;
+
             file = new File(FileSystem, this, sector.Address, ObjectFlags.None, name, 0);
             _files.Add(file);
             ByteCount += ADDRESS_BYTES;
@@ -314,7 +318,7 @@ namespace FileSystemNS
             if (result != FSResult.Success)
                 return result;
 
-            file.Load();
+            file.TryLoad();
             if (FileSystem.FreeSectors <
                     1 + Math_.DivCeiling(file.ByteCount - FileSystem.FirstSectorInfoSize, FileSystem.SectorInfoSize))
                 return FSResult.NotEnoughSpace;
@@ -330,7 +334,7 @@ namespace FileSystemNS
                 return result;
             }
 
-            newFile.Save();
+            newFile.TrySave();
 
             return FSResult.Success;
         }
@@ -349,8 +353,7 @@ namespace FileSystemNS
             ByteCount -= ADDRESS_BYTES;
             _files.CycleRight();
 
-            var sector = FileSystem.GetSector(Address);
-            if (sector.IsBad)
+            if (!FileSystem.TryGetSector(Address, out var sector))
                 return FSResult.BadSectorFound;
 
             sector.ByteCount = ByteCount;
@@ -378,13 +381,6 @@ namespace FileSystemNS
             FileSystem.RemoveFile(this, index);
             _files.RemoveAt(index);
             ByteCount -= ADDRESS_BYTES;
-
-            var sector = FileSystem.GetSector(Address);
-            if (sector.IsBad)
-                return FSResult.BadSectorFound;
-
-            sector.ByteCount = ByteCount;
-            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -407,7 +403,7 @@ namespace FileSystemNS
             return result;
         }
 
-        internal override void DeserializeBytes(byte[] bytes)
+        internal override bool TryDeserializeBytes(byte[] bytes)
         {
             int addressCount = bytes.Length / ADDRESS_BYTES;
             FileSystem.Sector sector;
@@ -415,43 +411,35 @@ namespace FileSystemNS
             int i = 0;
             while (i < addressCount)
             {
-                sector = FileSystem.GetSector(bytes.GetLong(i++ * ADDRESS_BYTES));
+                if (!FileSystem.TryGetSector(bytes.GetLong(i++ * ADDRESS_BYTES), out sector))
+                    return false;
+
                 flags = sector.ObjectFlags;
                 if (!flags.HasFlag(ObjectFlags.Directory))
                 {
-                    AddFile();
+                    _files.Add(
+                        new File(FileSystem, this, sector.Address, flags, sector.Name, sector.ByteCount));
                     break;
                 }
 
-                var dir = new Directory(
-                    FileSystem,
-                    this,
-                    sector.Address,
-                    flags,
-                    sector.Name,
-                    sector.ByteCount);
+                var dir = new Directory(FileSystem, this, sector.Address, flags, sector.Name, sector.ByteCount);
                 _subDirectories.Add(dir);
-                sector.TryDeserializeLinksTo(dir);
+                sector.TryDeserializeChainTo(dir);
             }
 
             while (i < addressCount)
             {
-                sector = FileSystem.GetSector(bytes.GetLong(i++ * ADDRESS_BYTES));
-                flags = sector.ObjectFlags;
-                AddFile();
-            }
+                if (!FileSystem.TryGetSector(bytes.GetLong(i++ * ADDRESS_BYTES), out sector))
+                    return false;
 
-            void AddFile() =>
+                flags = sector.ObjectFlags;
                 _files.Add(new File(
-                    FileSystem,
-                    this,
-                    sector.Address,
-                    flags,
-                    sector.Name,
-                    sector.ByteCount));
+                    FileSystem, this, sector.Address, flags, sector.Name, sector.ByteCount));
+            }
+            return true;
         }
 
-        private protected override byte[] OnSerializeBytes()
+        private protected override byte[] GetSerializedBytes()
         {
             byte[] bytes = new byte[(_subDirectories.Count + _files.Count) * ADDRESS_BYTES];
             for (int i = 0; i < _subDirectories.Count; i++)

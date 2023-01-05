@@ -38,8 +38,8 @@ namespace FileSystemNS
                     ? FSResult.Success
                     : FSResult.FormatNotSupported;
 
-        public void Save() => FileSystem.SerializeInfoBytes(this);
-        public void Load() => GetSector().TryDeserializeLinksTo(this);
+        public bool TrySave() => TryGetSector(out var sector) && sector.TrySerializeChainFrom(this);
+        public bool TryLoad() => TryGetSector(out var sector) && sector.TryDeserializeChainTo(this);
 
         public override FSResult TrySetName(string name) =>
             base.TrySetName(AttachFormat(name, Format));
@@ -75,7 +75,7 @@ namespace FileSystemNS
                         if (obj is SoundPlayer) break;
                         return FSResult.FormatMismatch;
 
-                    default: throw new UnreachableException($"Format should have been set correctly by the constructor.");
+                    default: throw new UnreachableException($"{nameof(Format)} should have been set correctly by the constructor.");
                 }
 
             Object = obj;
@@ -110,22 +110,22 @@ namespace FileSystemNS
                     stream.Position = 0;
                     return new SoundPlayer(stream);
 
-                default: throw new UnreachableException($"Object should have been set correctly by the {nameof(TrySetObject)} method.");
+                default: throw new UnreachableException($"{nameof(Object)} should have been set correctly by the {nameof(TrySetObject)} method.");
             }
         }
 
-        internal override void DeserializeBytes(byte[] bytes)
+        internal override bool TryDeserializeBytes(byte[] bytes)
         {
             if (bytes.Length == 0)
             {
                 Object = null;
-                return;
+                return true;
             }
 
             if (Format == FileFormat.Txt)
             {
                 Object = Encoding.Unicode.GetString(bytes);
-                return;
+                return true;
             }
 
             var stream = new MemoryStream();
@@ -138,7 +138,7 @@ namespace FileSystemNS
                     RichTextBox rtb = new RichTextBox();
                     rtb.LoadFile(stream, RichTextBoxStreamType.RichText);
                     Object = rtb;
-                    break;
+                    return true;
 
                 case FileFormat.Bmp:
                 case FileFormat.Emf:
@@ -150,17 +150,17 @@ namespace FileSystemNS
                 case FileFormat.Exif:
                 case FileFormat.Icon:
                     Object = Image.FromStream(stream);
-                    break;
+                    return true;
 
                 case FileFormat.Wav:
                     Object = new SoundPlayer(stream);
-                    break;
+                    return true;
 
-                default: throw new UnreachableException($"Format should have been set correctly by the constructor.");
+                default: throw new UnreachableException($"{nameof(Format)} should have been set correctly by the constructor.");
             }
         }
 
-        private protected override byte[] OnSerializeBytes()
+        private protected override byte[] GetSerializedBytes()
         {
             if (Object is null)
                 return Array.Empty<byte>();
@@ -184,7 +184,7 @@ namespace FileSystemNS
                         sp.Stream.CopyTo(stream);
                         break;
 
-                    default: throw new UnreachableException($"Object should have been set correctly by the {nameof(TrySetObject)} method.");
+                    default: throw new UnreachableException($"{nameof(Object)} should have been set correctly by the {nameof(TrySetObject)} method.");
                 }
 
                 return stream.ToArray();
