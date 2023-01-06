@@ -178,7 +178,7 @@ namespace UI
 
                             List_<char> chars = new List_<char>();
                             Console.WriteLine(directory.Name);
-                            foreach (var item in directory.SubDirectories.SelectTree_(dir => dir.SubDirectories, (dir, depth) =>
+                            foreach (var item in directory.Directories.SelectTree_(dir => dir.Directories, (dir, depth) =>
                                 {
                                     int excess = chars.Count - 1 - depth;
                                     if (excess > 0)
@@ -199,8 +199,8 @@ namespace UI
 
                                     return Indet(string.Concat(chars), 4) + dir.Name;
 
-                                    bool IsFirst(Directory d) => d.Parent.SubDirectories[0] == d;
-                                    bool IsLast(Directory d) => d.Parent.SubDirectories.Last_() == d;
+                                    bool IsFirst(Directory d) => d.Parent.Directories[0] == d;
+                                    bool IsLast(Directory d) => d.Parent.Directories.Last_() == d;
                                     string Indet(string str, int level)
                                     {
                                         char[] chs = new char[str.Length * level];
@@ -232,13 +232,13 @@ namespace UI
                                     .IsError(Console.WriteLine, faultedName))
                                 break;
 
-                            if (directory.SubDirectories.Count > 0)
+                            if (directory.Directories.Count > 0)
                             {
                                 Console.WriteLine("Directories:");
                                 Console.WriteLine();
-                                for (int i = 0; i < directory.SubDirectories.Count - 1; i++)
-                                    Console.WriteLine(directory.SubDirectories[i].Name);
-                                Console.WriteLine(directory.SubDirectories.Last_().Name);
+                                for (int i = 0; i < directory.Directories.Count - 1; i++)
+                                    Console.WriteLine(directory.Directories[i].Name);
+                                Console.WriteLine(directory.Directories.Last_().Name);
                                 Console.WriteLine();
                             }
 

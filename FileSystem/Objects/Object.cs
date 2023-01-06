@@ -14,7 +14,7 @@ namespace FileSystemNS
         private string _fullName;
 
         internal long ByteCount { get; private protected set; }
-        internal long Address { get; private set; }
+        internal long Address { get; private protected set; }
         internal ObjectFlags ObjectFlags { get; private set; }
         internal FileSystem FileSystem { get; }
 
@@ -75,6 +75,7 @@ namespace FileSystemNS
                                             ? FSResult.NameWasTaken
                                             : FSResult.Success;
 
+
         public virtual FSResult TrySetName(string name)
         {
             var result = ValidateName(Parent, name);
@@ -104,7 +105,26 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        internal bool TryGetSector(out FileSystem.Sector sector) => FileSystem.TryGetSector(Address, out sector);
+        internal bool TryGetSector(out FileSystem.Sector sector)
+        {
+            if (FileSystem.TryGetSector(Address, out sector))
+                return true;
+
+            Object obj = this;
+            while (!obj.TryRemoveFromParent())
+                obj = obj.Parent;
+
+            return false;
+        }
+
+        internal bool TryUpdateAddress(Object obj, FileSystem.Sector sector)
+        {
+            if (!FileSystem.TryUpdateSector(this, sector))
+                return false;
+
+            obj.Address = sector.Address;
+            return true;
+        }
 
         internal abstract bool TryDeserializeBytes(byte[] bytes);
 
@@ -115,12 +135,16 @@ namespace FileSystemNS
             return bytes;
         }
 
+        internal abstract int GetIndexInParent();
+
         private protected abstract byte[] GetSerializedBytes();
+
+        private protected abstract bool TryRemoveFromParent();
 
         private protected void RecursiveResetFullName(Directory currDir)
         {
             currDir._fullName = null;
-            foreach (var child in currDir.SubDirectories)
+            foreach (var child in currDir.Directories)
                 RecursiveResetFullName(child);
 
             foreach (var file in currDir.Files)

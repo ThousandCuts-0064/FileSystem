@@ -38,8 +38,16 @@ namespace FileSystemNS
                     ? FSResult.Success
                     : FSResult.FormatNotSupported;
 
-        public bool TrySave() => TryGetSector(out var sector) && sector.TrySerializeChainFrom(this);
-        public bool TryLoad() => TryGetSector(out var sector) && sector.TryDeserializeChainTo(this);
+        public bool TrySave() =>
+            TryGetSector(out var sector) && 
+            sector.TryGetLast(checked((int)ByteCount), out _) &&
+            sector.TryFindFree(out sector) && 
+            sector.TrySerializeChainFrom(this) &&
+            TryUpdateAddress(this, sector);
+
+        public bool TryLoad() => 
+            TryGetSector(out var sector) && 
+            sector.TryDeserializeChainTo(this);
 
         public override FSResult TrySetName(string name) =>
             base.TrySetName(AttachFormat(name, Format));
@@ -82,7 +90,7 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        internal object GetObjectDeepCopyOrNull()
+        internal object GetObjectDeepCopy()
         {
             if (Object is null)
                 return null;
@@ -160,6 +168,8 @@ namespace FileSystemNS
             }
         }
 
+        internal override int GetIndexInParent() => Parent.Directories.Count + Parent.Files.IndexOf_(this);
+
         private protected override byte[] GetSerializedBytes()
         {
             if (Object is null)
@@ -191,5 +201,6 @@ namespace FileSystemNS
             }
         }
 
+        private protected override bool TryRemoveFromParent() => Parent.TryRemoveFile(Name) == FSResult.Success;
     }
 }

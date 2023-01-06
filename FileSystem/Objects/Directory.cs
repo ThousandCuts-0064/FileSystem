@@ -10,19 +10,19 @@ namespace FileSystemNS
 {
     public sealed class Directory : Object
     {
-        private readonly UnorderedList_<Directory> _subDirectories;
+        private readonly UnorderedList_<Directory> _directories;
         private readonly UnorderedList_<File> _files;
-        public IReadOnlyList<Directory> SubDirectories { get; }
+        public IReadOnlyList<Directory> Directories { get; }
         public IReadOnlyList<File> Files { get; }
-        public int ObjectCount => _subDirectories.Count + _files.Count;
+        public int ObjectCount => _directories.Count + _files.Count;
 
         private Directory(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
             : base(fileSystem, parent, address, objectFlags, name, byteCount)
         {
             if (!objectFlags.HasFlag(ObjectFlags.Directory)) throw new InvalidOperationException($"{nameof(ObjectFlags.Directory)} flag was missing.");
 
-            _subDirectories = new UnorderedList_<Directory>();
-            SubDirectories = _subDirectories.ToReadOnly();
+            _directories = new UnorderedList_<Directory>();
+            Directories = _directories.ToReadOnly();
             _files = new UnorderedList_<File>();
             Files = _files.ToReadOnly();
         }
@@ -67,7 +67,7 @@ namespace FileSystemNS
             return result;
         }
 
-        public IEnumerable<Object> EnumerateObjects() => _subDirectories.Concat_<Object>(_files);
+        public IEnumerable<Object> EnumerateObjects() => _directories.Concat_<Object>(_files);
 
         public FSResult TryFindDirectory(string name, out Directory directory)
         {
@@ -98,7 +98,7 @@ namespace FileSystemNS
                 return FSResult.Success;
             }
 
-            directory = _subDirectories.FirstOrDefault_(dir => dir.Name == name);
+            directory = _directories.FirstOrDefault_(dir => dir.Name == name);
             return directory is null ? FSResult.NameWasNotFound : FSResult.Success;
         }
 
@@ -219,10 +219,10 @@ namespace FileSystemNS
                     continue;
                 }
 
-                int index = preLastDir.SubDirectories.IndexOf_(dir => dir.Name == names[i]);
+                int index = preLastDir.Directories.IndexOf_(dir => dir.Name == names[i]);
                 if (index != -1)
                 {
-                    preLastDir = preLastDir.SubDirectories[index];
+                    preLastDir = preLastDir.Directories[index];
                     continue;
                 }
 
@@ -258,7 +258,7 @@ namespace FileSystemNS
             if (result != FSResult.Success) return result;
 
             directory = new Directory(FileSystem, this, sector.Address, ObjectFlags.Directory, name, 0);
-            _subDirectories.Add(directory);
+            _directories.Add(directory);
             ByteCount += ADDRESS_BYTES;
             _files.CycleLeft();
 
@@ -327,7 +327,7 @@ namespace FileSystemNS
             if (result != FSResult.Success)
                 return result;
 
-            result = newFile.TrySetObject(file.GetObjectDeepCopyOrNull());
+            result = newFile.TrySetObject(file.GetObjectDeepCopy());
             if (result != FSResult.Success)
             {
                 TryRemoveFile(newFile.Name);
@@ -344,20 +344,16 @@ namespace FileSystemNS
             var result = ValidateName(null, name);
             if (result != FSResult.Success) return result;
 
-            int index = _subDirectories.IndexOf_(dir => dir.Name == name);
+            int index = _directories.IndexOf_(dir => dir.Name == name);
             if (index == -1) return FSResult.NameWasNotFound;
 
-            FileSystem.FreeSectorsOf(_subDirectories[index]);
-            FileSystem.RemoveSubdirectory(this, index);
-            _subDirectories.RemoveAt(index);
+            FileSystem.FreeSectorsOf(_directories[index]);
+            result = FileSystem.TryRemoveDirectory(this, index);
+            if (index == -1) return result;
+
+            _directories.RemoveAt(index);
             ByteCount -= ADDRESS_BYTES;
             _files.CycleRight();
-
-            if (!FileSystem.TryGetSector(Address, out var sector))
-                return FSResult.BadSectorFound;
-
-            sector.ByteCount = ByteCount;
-            sector.UpdateResiliancy();
             return FSResult.Success;
         }
 
@@ -378,7 +374,9 @@ namespace FileSystemNS
             if (index == -1) return FSResult.NameWasNotFound;
 
             FileSystem.FreeSectorsOf(_files[index]);
-            FileSystem.RemoveFile(this, index);
+            result = FileSystem.TryRemoveFile(this, index);
+            if (result != FSResult.Success) return result;
+
             _files.RemoveAt(index);
             ByteCount -= ADDRESS_BYTES;
             return FSResult.Success;
@@ -398,7 +396,7 @@ namespace FileSystemNS
             if (result != FSResult.Success)
                 return result;
 
-            _subDirectories.Clear();
+            _directories.Clear();
             _files.Clear();
             return result;
         }
@@ -423,7 +421,7 @@ namespace FileSystemNS
                 }
 
                 var dir = new Directory(FileSystem, this, sector.Address, flags, sector.Name, sector.ByteCount);
-                _subDirectories.Add(dir);
+                _directories.Add(dir);
                 sector.TryDeserializeChainTo(dir);
             }
 
@@ -439,13 +437,17 @@ namespace FileSystemNS
             return true;
         }
 
+        internal override int GetIndexInParent() => Parent.Directories.IndexOf_(this);
+
         private protected override byte[] GetSerializedBytes()
         {
-            byte[] bytes = new byte[(_subDirectories.Count + _files.Count) * ADDRESS_BYTES];
-            for (int i = 0; i < _subDirectories.Count; i++)
-                _subDirectories[i].Address.GetBytes(bytes, i * ADDRESS_BYTES);
+            byte[] bytes = new byte[(_directories.Count + _files.Count) * ADDRESS_BYTES];
+            for (int i = 0; i < _directories.Count; i++)
+                _directories[i].Address.GetBytes(bytes, i * ADDRESS_BYTES);
             return bytes;
         }
+
+        private protected override bool TryRemoveFromParent() => Parent.TryRemoveDirectory(Name) == FSResult.Success;
 
         private string GetNameWithCopyCount(string name)
         {
