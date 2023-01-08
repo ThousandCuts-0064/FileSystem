@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -10,6 +9,7 @@ using Text;
 using Core;
 using static Core.Constants;
 using static FileSystemNS.Constants;
+using System.Threading.Tasks;
 
 namespace FileSystemNS
 {
@@ -17,12 +17,14 @@ namespace FileSystemNS
     {
         private const int RESILIENCY_FACTOR = 64;
 
-        private readonly HashSet_<long> _badSectors;
         private readonly BitArray_ _bitMap;
+        private readonly BitArray_ _badSectors;
         private readonly byte[] _reuseAddressArray = new byte[ADDRESS_BYTES];
         private readonly byte[] _reuseSectorArray;
         private readonly byte[] _reuseResiliencyArray;
         private readonly FileStream _stream;
+        private readonly Wrapper<double> _progress = new Wrapper<double>() { Value = 1 };
+        private readonly long _badSectorsAddress;
 
         internal long SectorCount { get; }
         internal long RootAddress { get; }
@@ -36,34 +38,39 @@ namespace FileSystemNS
         internal int FreeSectors => _bitMap.UnsetBits;
 
         public Directory RootDirectory { get; private set; }
+        public Progress Progress { get; }
+        public bool IsBusy { get; private set; }
         public long TotalSize { get; }
 
         // Partial initialization. RootDirectory required.
-        private FileSystem(FileStream fileStream, long totalSize, ushort sectorSize, long sectorCount, BitArray_ bitmap)
+        private FileSystem(FileStream fileStream, long totalSize, ushort sectorSize, long sectorCount, BitArray_ bitmap, BitArray_ badSectors)
         {
+            Progress = new Progress(_progress);
             _stream = fileStream;
             TotalSize = totalSize;
             SectorSize = sectorSize;
             SectorCount = sectorCount;
             _bitMap = bitmap;
-            _badSectors = new HashSet_<long>();
+            _badSectors = badSectors;
             _reuseSectorArray = new byte[SectorSize];
             ResiliencyBytes = (ushort)(SectorSize / RESILIENCY_FACTOR);
             _reuseResiliencyArray = new byte[ResiliencyBytes];
             ResiliencyIndex = (ushort)(SectorSize - ResiliencyBytes);
             NextSectorIndex = (ushort)(ResiliencyIndex - ADDRESS_BYTES);
             FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES - ResiliencyBytes);
-            RootAddress = Math_.DivCeiling(BITMAP_INDEX + _bitMap.ByteCount, SectorSize) * SectorSize;
+            _badSectorsAddress = BITMAP_INDEX + _bitMap.ByteCount;
+            RootAddress = Math_.DivCeiling(_badSectorsAddress + _badSectors.ByteCount, SectorSize) * SectorSize;
         }
 
         public static FileSystem Create(FileStream fileStream, string name, long totalSize, ushort sectorSize)
         {
             long sectorCount = totalSize / sectorSize;
-            var bitMap = new BitArray_((int)sectorCount); // BitmapBytes may be too large
+            var bitMap = new BitArray_(checked((int)sectorCount)); // BitmapBytes may cause overflow
+            var badSectors = new BitArray_(checked((int)sectorCount));
 
             FileSystem fileSystem = new FileSystem(
                 fileStream ?? throw new ArgumentNullException(nameof(fileStream)),
-                totalSize, sectorSize, sectorCount, bitMap);
+                totalSize, sectorSize, sectorCount, bitMap, badSectors);
 
             fileSystem.RootDirectory = Directory.CreateRoot(fileSystem, name);
 
@@ -71,9 +78,16 @@ namespace FileSystemNS
             totalSize.GetBytes(bootSectorBytes, TOTAL_SIZE_INDEX);
             sectorSize.GetBytes(bootSectorBytes, SECTOR_SIZE_INDEX);
             sectorCount.GetBytes(bootSectorBytes, SECTOR_COUNT_INDEX);
-
             fileStream.WriteAt(0, bootSectorBytes, 0, BOOT_SECTOR_SIZE);
+
+            int reservedSectors = checked((int)fileSystem.RootAddress / fileSystem.SectorSize);
+            for (int i = 0; i < reservedSectors; i++)
+            {
+                bitMap[i] = true;
+                badSectors[i] = true;
+            }
             fileStream.WriteAt(BITMAP_INDEX, bitMap.GetBytes(), 0, bitMap.ByteCount);
+            fileStream.WriteAt(fileSystem._badSectorsAddress, badSectors.GetBytes(), 0, bitMap.ByteCount);
 
             fileSystem.TryGetSector(fileSystem.RootAddress, out Sector sector);
             sector.Allocate();
@@ -96,8 +110,9 @@ namespace FileSystemNS
 
             fileStream.ReadAt(BITMAP_INDEX, bytes, 0, bytes.Length);
             BitArray_ bitmap = new BitArray_(bytes, checked((int)sectorCount));
+            BitArray_ badSectors = new BitArray_(bytes, checked((int)sectorCount));
 
-            FileSystem fileSystem = new FileSystem(fileStream, totalSize, sectorSize, sectorCount, bitmap);
+            FileSystem fileSystem = new FileSystem(fileStream, totalSize, sectorSize, sectorCount, bitmap, badSectors);
 
             fileSystem.RootDirectory = Directory.LoadRoot(fileSystem);
 
@@ -143,6 +158,9 @@ namespace FileSystemNS
 
             if (fs.HasFlag(FS.BitMap))
                 strs.Add(_bitMap.GetBytes().ToHex_());
+
+            if (fs.HasFlag(FS.BadSectors))
+                strs.Add(_badSectors.GetBytes().ToHex_());
 
             if (fs.HasFlag(FS.Root))
             {
@@ -210,6 +228,9 @@ namespace FileSystemNS
             if (fs.HasFlag(FS.BitMap))
                 strs.Add(_bitMap.GetBytes().ToBin_());
 
+            if (fs.HasFlag(FS.BadSectors))
+                strs.Add(_badSectors.GetBytes().ToBin_());
+
             if (fs.HasFlag(FS.Root))
             {
                 strs.Add(((byte)_stream.ReadByteAt(RootDirectory.Address)).ToBin_());
@@ -245,6 +266,8 @@ namespace FileSystemNS
             _stream.Close();
         }
 
+        internal Sector GetEmptySector() => Sector.GetEmpty(this);
+
         internal bool TryGetSector(long address, out Sector sector) =>
             Sector.TryGet(this, address, out sector);
 
@@ -266,13 +289,13 @@ namespace FileSystemNS
 
         internal FSResult TryCreateDirectory(Directory parent, out Sector sector)
         {
-            sector = new Sector();
+            sector = GetEmptySector();
             if (!parent.TryGetSector(out Sector parentSector))
                 return FSResult.BadSectorFound;
 
             Sector lastSector;
             Sector dirWriteSector;
-            Sector nextSector = new Sector(); // Only used if new sector is needed for expansion
+            Sector nextSector = GetEmptySector(); // Only used if new sector is needed for expansion
             int dirSectorCount = FullSectorsAndByteIndex(parent.Directories.Count * ADDRESS_BYTES, out long dirIndex);
 
             if (parent.Files.Count == 0)
@@ -345,12 +368,12 @@ namespace FileSystemNS
 
         internal FSResult TryCreateFile(Directory parent, out Sector sector)
         {
-            sector = new Sector();
+            sector = GetEmptySector();
             if (!parent.TryGetSector(out Sector parentSector))
                 return FSResult.BadSectorFound;
 
             Sector lastSector;
-            Sector nextSector = new Sector(); // Only used if new sector is needed for expansion
+            Sector nextSector = GetEmptySector(); // Only used if new sector is needed for expansion
             int sectorCount = FullSectorsAndByteIndex(parent.ObjectCount * ADDRESS_BYTES, out long fileIndex);
 
             if (fileIndex == 0)
@@ -455,19 +478,16 @@ namespace FileSystemNS
                 foreach (var subObj in dir.EnumerateObjects())
                     FreeSectorsOf(subObj);
 
+
             if (!obj.TryGetSector(out Sector sector))
                 return FSResult.BadSectorFound;
 
-            if (removeFirst) sector.Free();
-
-            int count = FullSectorsAndByteIndex(obj.ByteCount, out _);
-            for (int i = 0; i < count; i++)
-                if (sector.TryGetNext(out sector))
-                    sector.Free();
-                else
-                    return FSResult.BadSectorFound;
-            return FSResult.Success;
+            return sector.TryFreeChain(TotalSectors(obj.ByteCount), false)
+                ? FSResult.Success
+                : FSResult.BadSectorFound;
         }
+
+        private int TotalSectors(long byteCount) => FullSectorsAndByteIndex(byteCount, out long byteIndex) + byteIndex > 0 ? 1 : 0;
 
         private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
@@ -488,7 +508,20 @@ namespace FileSystemNS
 
         private void ValidateSectors()
         {
-
+            Task.Run(() =>
+            {
+                IsBusy = true;
+                lock (this)
+                {
+                    for (int i = 0; i < 100; i++)
+                    {
+                        _progress.Value = i / 100d;
+                        System.Threading.Thread.Sleep(10);
+                    }
+                }
+                _progress.Value = 1;
+                IsBusy = false;
+            });
         }
 
         void IDisposable.Dispose() => Close();
@@ -506,7 +539,6 @@ namespace FileSystemNS
             private ushort FirstSectorInfoSize => _fs.FirstSectorInfoSize;
             private ushort SectorInfoSize => _fs.SectorInfoSize;
             private ushort NextSectorIndex => _fs.NextSectorIndex;
-            private long RootAddress => _fs.RootAddress;
             private long SectorCount => _fs.SectorCount;
 
             public ObjectFlags ObjectFlags
@@ -548,7 +580,7 @@ namespace FileSystemNS
             }
 
             public long Address { get; }
-            public bool IsEmpty => _fs is null;
+            public bool IsEmpty => Address == 0;
 
             private Sector(FileSystem fileSystem, long address)
             {
@@ -556,27 +588,33 @@ namespace FileSystemNS
                 Address = address;
             }
 
-            public static bool TryGet(FileSystem fileSystem, long address, out Sector sector)
+            public static Sector GetEmpty(FileSystem fileSystem) => new Sector(fileSystem, 0);
+
+            public static bool TryGet(FileSystem fileSystem, long address, out Sector sector) => TryGet(fileSystem, address, true, out sector);
+
+            private static bool TryGet(FileSystem fileSystem, long address, bool validateAllIfBad, out Sector sector)
             {
                 if (fileSystem is null) throw new ArgumentNullException(nameof(fileSystem));
-                if (address % fileSystem.SectorSize != 0) throw new ArgumentOutOfRangeException(nameof(address));
+                if (address % fileSystem.SectorSize != 0 ||
+                    address < fileSystem.RootAddress) throw new ArgumentOutOfRangeException(nameof(address));
 
                 byte[] sectorBytes = fileSystem._reuseSectorArray;
                 fileSystem._stream.ReadAt(address, sectorBytes, 0, sectorBytes.Length);
                 byte[] bytes = fileSystem._reuseResiliencyArray;
 
+                int resiliencyBytes = fileSystem.ResiliencyBytes;
                 for (int i = 0; i < RESILIENCY_FACTOR; i++)
-                    for (int y = 0; y < fileSystem.ResiliencyBytes; y++)
-                        bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
+                    for (int y = 0; y < resiliencyBytes; y++)
+                        bytes[y] ^= sectorBytes[y * resiliencyBytes + i];
 
                 sector = new Sector(fileSystem, address);
                 for (int i = 0; i < bytes.Length; i++)
                     if (bytes[i] != 0)
                     {
-                        fileSystem._badSectors.Add(address);
-                        sector.Allocate();
-                        fileSystem.ValidateSectors();
-                        sector = new Sector();
+                        if (!fileSystem._bitMap[checked((int)address / fileSystem.SectorSize)]) sector.Allocate();
+                        sector.MarkAsBad();
+                        if (validateAllIfBad) fileSystem.ValidateSectors();
+                        sector = GetEmpty(fileSystem);
                         return false;
                     }
 
@@ -640,7 +678,7 @@ namespace FileSystemNS
             {
                 byte[] bytes = obj.SerializeBytes();
                 int count = bytes.Length;
-                if (_fs.FreeSectors < count) return false;
+                if (_fs.FreeSectors < _fs.TotalSectors(count)) return false;
 
                 ObjectFlags = obj.ObjectFlags;
                 Name = obj.Name;
@@ -665,16 +703,16 @@ namespace FileSystemNS
                 }
 
                 index += countFirstSector;
-                int fullSectors = Math.DivRem(count, SectorInfoSize, out int remaining);
+                int fullSectorsAfterFirst = Math.DivRem(count, SectorInfoSize, out int remaining);
 
                 Sector sector = this;
                 Sector nextSector;
 
-                for (int i = 1; i <= fullSectors; i++)
+                for (int i = 1; i <= fullSectorsAfterFirst; i++)
                 {
                     if (!TryFindFree(out nextSector))
                     {
-                        FreeChain(i);
+                        TryFreeChain(i);
                         return false;
                     }
 
@@ -690,7 +728,7 @@ namespace FileSystemNS
 
                 if (!TryFindFree(out nextSector))
                 {
-                    FreeChain(fullSectors + 1);
+                    TryFreeChain(fullSectorsAfterFirst + 2);
                     return false;
                 }
 
@@ -704,12 +742,13 @@ namespace FileSystemNS
 
             public void UpdateResiliancy()
             {
-                byte[] sectorBytes = new byte[_fs.SectorSize];
+                byte[] sectorBytes = _fs._reuseSectorArray;
                 Stream.ReadAt(Address, sectorBytes, 0, sectorBytes.Length);
-                byte[] bytes = new byte[_fs.ResiliencyBytes];
+                byte[] bytes = _fs._reuseResiliencyArray;
+                int resiliencyBytes = _fs.ResiliencyBytes;
                 for (int i = 0; i < RESILIENCY_FACTOR; i++)
-                    for (int y = 0; y < _fs.ResiliencyBytes; y++)
-                        bytes[y] ^= sectorBytes[i * RESILIENCY_FACTOR + y];
+                    for (int y = 0; y < resiliencyBytes; y++)
+                        bytes[y] ^= sectorBytes[y * resiliencyBytes + i];
 
                 Stream.WriteAt(Address + _fs.ResiliencyIndex, bytes, 0, bytes.Length);
             }
@@ -721,7 +760,7 @@ namespace FileSystemNS
                 do
                 {
                     index = BitMap.IndexOf(false, index);
-                    isBad = !TryGet(_fs, index, out sector);
+                    isBad = !TryGet(_fs, index * SectorSize, false, out sector);
                 }
                 while (index != -1 && isBad);
                 return index != -1;
@@ -729,7 +768,7 @@ namespace FileSystemNS
 
             public void Allocate()
             {
-                int index = (int)((Address - RootAddress) / SectorSize);
+                int index = checked((int)(Address / SectorSize));
                 int byteIndex = index / BYTE_BITS;
 
                 if (index >= SectorCount) throw new ArgumentOutOfRangeException(nameof(Address), $"{nameof(Address)} exceeds the file system capacity.");
@@ -742,7 +781,7 @@ namespace FileSystemNS
 
             public void Free()
             {
-                int index = (int)((Address - RootAddress) / SectorSize);
+                int index = checked((int)(Address / SectorSize));
                 int byteIndex = index / BYTE_BITS;
 
                 if (index >= SectorCount) throw new ArgumentOutOfRangeException(nameof(Address), $"{nameof(Address)} exceeds the file system capacity.");
@@ -753,14 +792,31 @@ namespace FileSystemNS
                 Stream.WriteByteAt(BITMAP_INDEX + byteIndex, BitMap.GetByte(byteIndex));
             }
 
-            public void FreeChain(int count)
+            public bool TryFreeChain(int totalCount, bool freeThis = true)
             {
+                if (freeThis) Free();
+
                 Sector sector = this;
-                while (count-- > 0)
+                while (--totalCount > 0)
                 {
+                    if (!sector.TryGetNext(out sector))
+                        return false;
                     sector.Free();
-                    sector.TryGetNext(out sector);
                 }
+                return true;
+            }
+
+            private void MarkAsBad()
+            {
+                int index = checked((int)(Address / SectorSize));
+                int byteIndex = index / BYTE_BITS;
+
+                if (index >= SectorCount) throw new ArgumentOutOfRangeException(nameof(Address), $"{nameof(Address)} exceeds the file system capacity.");
+
+                _fs._badSectors[index] = _fs._badSectors[index]
+                    ? throw new ArgumentException("Sector is already marked as bad.", nameof(Address))
+                    : true;
+                Stream.WriteByteAt(_fs._badSectorsAddress + byteIndex, BitMap.GetByte(byteIndex));
             }
         }
     }

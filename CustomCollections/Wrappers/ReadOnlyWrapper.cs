@@ -9,7 +9,7 @@ namespace CustomCollections
     public class ReadOnlyWrapper<T> : IReadOnlyWrapper<T>
     {
         private readonly Wrapper<T> _wrapper;
-        public T Item => _wrapper.Item;
+        public T Value => _wrapper.Value;
 
         public ReadOnlyWrapper(Wrapper<T> wrapper) =>
             _wrapper = wrapper;

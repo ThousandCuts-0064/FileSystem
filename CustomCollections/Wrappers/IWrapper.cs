@@ -2,6 +2,6 @@
 {
     public interface IWrapper<T>
     {
-        T Item { get; set; }
+        T Value { get; set; }
     }
 }

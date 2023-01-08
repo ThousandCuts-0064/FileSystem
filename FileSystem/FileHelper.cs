@@ -34,15 +34,8 @@ namespace FileSystemNS
                 {
                     Console.WriteLine("Chose a file or type \"help\" for more info.");
                     Console.WriteLine();
-                    char first = Console.ReadKey().KeyChar;
-                    string str;
-                    if (first == '1')
-                    {
-                        str = "create f /t 10kb /s 512";
-                        Console.WriteLine();
-                    }
-                    else
-                        str = first + Console.ReadLine();
+                    string str = Console.ReadLine();
+                    if (str == "1") str = "create f /t 10kb /s 512";
                     commands = str.TrimEnd_(' ').Split_(' ', 2);
                     Console.WriteLine();
                 }

@@ -8,6 +8,6 @@ namespace CustomCollections
 {
     public class Wrapper<T> : IWrapper<T>, IReadOnlyWrapper<T>
     {
-        public virtual T Item { get; set; }
+        public virtual T Value { get; set; }
     }
 }

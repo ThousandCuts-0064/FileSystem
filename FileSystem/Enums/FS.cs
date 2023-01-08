@@ -14,7 +14,8 @@ namespace FileSystemNS
         FSInfo     = 1 << 1,
         BootSector = BootByte | FSInfo,
         BitMap     = 1 << 2,
-        Root       = 1 << 3,
-        All        = (1 << 4) - 1
+        BadSectors = 1 << 3,
+        Root       = 1 << 4,
+        All        = (1 << 5) - 1
     }
 }

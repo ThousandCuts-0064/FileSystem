@@ -27,94 +27,94 @@ namespace CustomCollections
                 AddLast(item);
         }
 
-        public LinkedListNode_<T> AddLast(T item) => AddLastUnchecked(NewNode(item));
+        public LinkedListNode_<T> AddLast(T value) => AddLastUnchecked(NewNode(value));
         public LinkedListNode_<T> AddLast(LinkedListNode_<T> node) => node is null
                 ? throw new ArgumentNullException(nameof(node))
                 : node.List is null
                     ? AddLastUnchecked(node)
                     : throw new ArgumentException($"{node} was already part of {nameof(LinkedList_<T>)}", nameof(node));
 
-        public LinkedListNode_<T> AddFirst(T item) => AddFirstUnchecked(NewNode(item));
+        public LinkedListNode_<T> AddFirst(T value) => AddFirstUnchecked(NewNode(value));
         public LinkedListNode_<T> AddFirst(LinkedListNode_<T> node) => node is null
                 ? throw new ArgumentNullException(nameof(node))
                 : node.List is null
                     ? AddFirstUnchecked(node)
                     : throw new ArgumentException($"{node} was already part of {nameof(LinkedList_<T>)}", nameof(node));
 
-        public LinkedListNode_<T> AddAfter(LinkedListNode_<T> node, T item) => AddAfterNewUnchecked(node, NewNode(item));
+        public LinkedListNode_<T> AddAfter(LinkedListNode_<T> node, T value) => AddAfterNewUnchecked(node, NewNode(value));
         public LinkedListNode_<T> AddAfter(LinkedListNode_<T> node, LinkedListNode_<T> newNode) => newNode is null
             ? throw new ArgumentNullException(nameof(newNode))
             : newNode.List is null
                 ? AddAfterNewUnchecked(node, newNode)
                 : throw new ArgumentException($"{newNode} was already part of {nameof(LinkedList_<T>)}", nameof(newNode));
 
-        public LinkedListNode_<T> AddBefore(LinkedListNode_<T> node, T item) => AddBeforeNewUncheked(node, NewNode(item));
+        public LinkedListNode_<T> AddBefore(LinkedListNode_<T> node, T value) => AddBeforeNewUncheked(node, NewNode(value));
         public LinkedListNode_<T> AddBefore(LinkedListNode_<T> node, LinkedListNode_<T> newNode) => newNode is null
             ? throw new ArgumentNullException(nameof(newNode))
             : newNode.List is null
                 ? AddBeforeNewUncheked(node, newNode)
                 : throw new ArgumentException($"{newNode} was already part of {nameof(LinkedList_<T>)}", nameof(newNode));
 
-        public bool ContainsLast(T item)
+        public bool ContainsLast(T value)
         {
             var curr = Last;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                     return true;
                 curr = curr.Previous;
             }
             return false;
         }
 
-        public bool ContainsFirst(T item)
+        public bool ContainsFirst(T value)
         {
             var curr = First;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                     return true;
                 curr = curr.Next;
             }
             return false;
         }
 
-        public LinkedListNode_<T> FindLast(T item)
+        public LinkedListNode_<T> FindLast(T value)
         {
             var curr = Last;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                     return curr;
                 curr = curr.Previous;
             }
             return null;
         }
 
-        public LinkedListNode_<T> FindFirst(T item)
+        public LinkedListNode_<T> FindFirst(T value)
         {
             var curr = First;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                     return curr;
                 curr = curr.Next;
             }
             return null;
         }
 
-        public bool TryFindLast(T item, out LinkedListNode_<T> node)
+        public bool TryFindLast(T value, out LinkedListNode_<T> node)
         {
             node = null;
             var curr = Last;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                 {
                     node = curr;
                     return true;
@@ -124,14 +124,14 @@ namespace CustomCollections
             return false;
         }
 
-        public bool TryFindFirst(T item, out LinkedListNode_<T> node)
+        public bool TryFindFirst(T value, out LinkedListNode_<T> node)
         {
             node = null;
             var curr = First;
             EqualityComparer<T> comparer = EqualityComparer<T>.Default;
             while (!(curr is null))
             {
-                if (comparer.Equals(curr.Item, item))
+                if (comparer.Equals(curr.Value, value))
                 {
                     node = curr;
                     return true;
@@ -193,17 +193,17 @@ namespace CustomCollections
             Count--;
         }
 
-        public bool RemoveLast(T item)
+        public bool RemoveLast(T value)
         {
-            if (!TryFindLast(item, out var node)) return false;
+            if (!TryFindLast(value, out var node)) return false;
 
             Remove(node);
             return true;
         }
 
-        public bool RemoveFirst(T item)
+        public bool RemoveFirst(T value)
         {
-            if (!TryFindFirst(item, out var node)) return false;
+            if (!TryFindFirst(value, out var node)) return false;
 
             Remove(node);
             return true;
@@ -230,12 +230,12 @@ namespace CustomCollections
             var curr = First;
             while (!(curr is null))
             {
-                yield return curr.Item;
+                yield return curr.Value;
                 curr = curr.Next;
             }
         }
 
-        private LinkedListNode_<T> NewNode(T item) => new LinkedListNode_<T>(this, item);
+        private LinkedListNode_<T> NewNode(T value) => new LinkedListNode_<T>(this, value);
 
         private LinkedListNode_<T> AddLastUnchecked(LinkedListNode_<T> node)
         {
@@ -277,9 +277,9 @@ namespace CustomCollections
             return newNode;
         }
 
-        void ICollection<T>.Add(T item) => AddLast(item);
-        bool ICollection<T>.Contains(T item) => ContainsFirst(item);
-        bool ICollection<T>.Remove(T item) => RemoveLast(item);
+        void ICollection<T>.Add(T value) => AddLast(value);
+        bool ICollection<T>.Contains(T value) => ContainsFirst(value);
+        bool ICollection<T>.Remove(T value) => RemoveLast(value);
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

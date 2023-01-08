@@ -11,9 +11,9 @@ namespace CustomCollections
         public LinkedListNode_<T> Previous { get; private set; }
         public LinkedListNode_<T> Next { get; private set; }
 
-        public LinkedListNode_(T item) => Item = item;
+        public LinkedListNode_(T value) => Value = value;
 
-        internal LinkedListNode_(LinkedList_<T> list, T item) : this(item) =>  List = list;
+        internal LinkedListNode_(LinkedList_<T> list, T value) : this(value) =>  List = list;
 
         internal void ChainNext(LinkedListNode_<T> node)
         {

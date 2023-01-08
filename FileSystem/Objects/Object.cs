@@ -85,7 +85,7 @@ namespace FileSystemNS
             Name = name;
             _fullName = null;
 
-            if (!FileSystem.TryGetSector(Address, out var sector))
+            if (!TryGetSector(out var sector))
                 return FSResult.BadSectorFound;
 
             sector.Name = Name;
@@ -96,7 +96,7 @@ namespace FileSystemNS
         public virtual FSResult Clear()
         {
             ByteCount = 0;
-            if (!FileSystem.TryGetSector(Address, out var sector))
+            if (!TryGetSector(out var sector))
                 return FSResult.BadSectorFound;
 
             FileSystem.FreeSectorsOf(this, false);
@@ -111,7 +111,7 @@ namespace FileSystemNS
                 return true;
 
             Object obj = this;
-            while (!obj.TryRemoveFromParent())
+            while (!(obj.Parent is null) && !obj.TryRemoveFromParent())
                 obj = obj.Parent;
 
             return false;

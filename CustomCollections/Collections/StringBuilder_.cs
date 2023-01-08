@@ -25,7 +25,7 @@
             int index = 0;
             for (var node = _strings.First; !(node is null); node = node.Next)
             {
-                string str = node.Item;
+                string str = node.Value;
                 for (int c = 0; c < str.Length; c++)
                     chars[index++] = str[c];
             }

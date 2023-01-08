@@ -8,6 +8,6 @@ namespace CustomCollections
 {
     public interface IReadOnlyWrapper<out T>
     {
-        T Item { get; }
+        T Value { get; }
     }
 }
