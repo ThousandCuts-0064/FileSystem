@@ -40,6 +40,7 @@ namespace FileSystemNS
             directory.TryGetSector(out var sector);
             sector.SetProperties(directory);
             sector.UpdateResiliancy();
+            sector.Allocate();
             return directory;
         }
 
@@ -67,11 +68,14 @@ namespace FileSystemNS
             return result;
         }
 
-        public IEnumerable<Object> EnumerateObjects() => _directories.Concat_<Object>(_files);
+        public IEnumerable<Object> EnumerateObjects() => Directories.Concat_<Object>(Files);
 
         public FSResult TryFindDirectory(string name, out Directory directory)
         {
             directory = null;
+
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
 
             var result = ValidateName(null, name, true);
             if (result != FSResult.Success)
@@ -114,6 +118,9 @@ namespace FileSystemNS
         {
             file = null;
 
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(null, name);
             if (result != FSResult.Success)
                 return result;
@@ -134,6 +141,9 @@ namespace FileSystemNS
         public FSResult TryFindObject(string name, out Object obj)
         {
             obj = null;
+
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
 
             var result = ValidateName(null, name, true);
             if (result != FSResult.Success)
@@ -173,85 +183,17 @@ namespace FileSystemNS
                 : result;
         }
 
-        public FSResult TryFollowPath(string path, out Directory preLastDir, out string lastName, out string faultedName, bool create = false)
-        {
-            preLastDir = this;
-            lastName = null;
-            faultedName = null;
-
-            string[] names = path.Split('\\');
-            int i = -1;
-            if (names[0] == FileSystem.RootDirectory.Name)
-            {
-                preLastDir = FileSystem.RootDirectory;
-                i++;
-            }
-
-            if (names.Length == 1)
-            {
-                lastName = names[0];
-                return FSResult.Success;
-            }
-
-            while (++i < names.Length - 1)
-            {
-                if (names[i].Length > NAME_MAX_LENGTH)
-                {
-                    faultedName = names[i];
-                    return FSResult.NameExceededMaxLength;
-                }
-
-                if (names[i] == CUR_DIR)
-                {
-                    preLastDir = this;
-                    continue;
-                }
-
-                if (names[i] == PAR_DIR)
-                {
-                    if (preLastDir.Parent is null)
-                    {
-                        faultedName = names[i];
-                        return FSResult.RootHasNoParent;
-                    }
-
-                    preLastDir = preLastDir.Parent;
-                    continue;
-                }
-
-                int index = preLastDir.Directories.IndexOf_(dir => dir.Name == names[i]);
-                if (index != -1)
-                {
-                    preLastDir = preLastDir.Directories[index];
-                    continue;
-                }
-
-                if (!create)
-                {
-                    faultedName = names[i];
-                    return FSResult.NameWasNotFound;
-                }
-
-                var result = preLastDir.TryCreateDirectory(names[i], out preLastDir);
-                if (result != FSResult.Success)
-                {
-                    faultedName = names[i];
-                    return result;
-                }
-            }
-
-            lastName = names.Last_();
-            return FSResult.Success;
-        }
-
         public FSResult TryCreateDirectory(string name, out Directory directory)
         {
             directory = null;
 
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(this, name);
             if (result != FSResult.Success) return result;
 
-            if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new directory and one for expansion. 
+            if (FileSystem.FreeSectorCount < 2) // When current directory's last sector gets full, one is needed for the new directory and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
             result = FileSystem.TryCreateDirectory(this, out var sector);
@@ -279,13 +221,16 @@ namespace FileSystemNS
         {
             file = null;
 
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(this, name);
             if (result != FSResult.Success) return result;
 
             result = File.ValidateFormat(name);
             if (result != FSResult.Success) return result;
 
-            if (FileSystem.FreeSectors < 2) // When current directory's last sector gets full, one is needed for the new file and one for expansion. 
+            if (FileSystem.FreeSectorCount < 2) // When current directory's last sector gets full, one is needed for the new file and one for expansion. 
                 return FSResult.NotEnoughSpace;
 
             result = FileSystem.TryCreateFile(this, out var sector);
@@ -311,6 +256,9 @@ namespace FileSystemNS
 
         public FSResult TryCopyFile(File file, string newName = null)
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             newName = newName is null
                 ? GetNameWithCopyCount(file.Name)
                 : newName + '.' + file.Format.ToLower();
@@ -319,7 +267,7 @@ namespace FileSystemNS
                 return result;
 
             file.TryLoad();
-            if (FileSystem.FreeSectors <
+            if (FileSystem.FreeSectorCount <
                     1 + Math_.DivCeiling(file.ByteCount - FileSystem.FirstSectorInfoSize, FileSystem.SectorInfoSize))
                 return FSResult.NotEnoughSpace;
 
@@ -341,6 +289,9 @@ namespace FileSystemNS
 
         public FSResult TryRemoveDirectory(string name)
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(null, name);
             if (result != FSResult.Success) return result;
 
@@ -367,6 +318,9 @@ namespace FileSystemNS
 
         public FSResult TryRemoveFile(string name)
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(null, name);
             if (result != FSResult.Success) return result;
 
@@ -470,6 +424,80 @@ namespace FileSystemNS
             }
 
             return name.Substring_(0, dotIndex) + (exits ? $"({count + 1})" : "") + '.' + format;
+        }
+
+        private FSResult TryFollowPath(string path, out Directory preLastDir, out string lastName, out string faultedName, bool create = false)
+        {
+            preLastDir = this;
+            lastName = null;
+            faultedName = null;
+
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
+            string[] names = path.Split('\\');
+            int i = -1;
+            if (names[0] == FileSystem.RootDirectory.Name)
+            {
+                preLastDir = FileSystem.RootDirectory;
+                i++;
+            }
+
+            if (names.Length == 1)
+            {
+                lastName = names[0];
+                return FSResult.Success;
+            }
+
+            while (++i < names.Length - 1)
+            {
+                if (names[i].Length > NAME_MAX_LENGTH)
+                {
+                    faultedName = names[i];
+                    return FSResult.NameExceededMaxLength;
+                }
+
+                if (names[i] == CUR_DIR)
+                {
+                    preLastDir = this;
+                    continue;
+                }
+
+                if (names[i] == PAR_DIR)
+                {
+                    if (preLastDir.Parent is null)
+                    {
+                        faultedName = names[i];
+                        return FSResult.RootHasNoParent;
+                    }
+
+                    preLastDir = preLastDir.Parent;
+                    continue;
+                }
+
+                int index = preLastDir.Directories.IndexOf_(dir => dir.Name == names[i]);
+                if (index != -1)
+                {
+                    preLastDir = preLastDir.Directories[index];
+                    continue;
+                }
+
+                if (!create)
+                {
+                    faultedName = names[i];
+                    return FSResult.NameWasNotFound;
+                }
+
+                var result = preLastDir.TryCreateDirectory(names[i], out preLastDir);
+                if (result != FSResult.Success)
+                {
+                    faultedName = names[i];
+                    return result;
+                }
+            }
+
+            lastName = names.Last_();
+            return FSResult.Success;
         }
     }
 }

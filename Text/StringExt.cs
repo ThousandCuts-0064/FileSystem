@@ -62,7 +62,7 @@ namespace Text
         public static string PadLeft_(this string str, int widthTotal, char pad)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));
-            if (widthTotal <= 0) throw new NumberNotPositiveException(nameof(widthTotal));
+            if (widthTotal < 0) throw new NumberNegativeException(nameof(widthTotal));
 
             char[] chars = new char[widthTotal];
             int totalPads = widthTotal - str.Length;
@@ -76,7 +76,7 @@ namespace Text
         public static string PadRight_(this string str, int widthTotal, char pad)
         {
             if (str is null) throw new ArgumentNullException(nameof(str));
-            if (widthTotal <= 0) throw new NumberNotPositiveException(nameof(widthTotal));
+            if (widthTotal < 0) throw new NumberNegativeException(nameof(widthTotal));
 
             if (widthTotal <= str.Length) return str;
 

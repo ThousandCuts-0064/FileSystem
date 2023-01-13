@@ -10,11 +10,11 @@ using static CustomCollections.Constants;
 namespace CustomCollections
 {
     [DebuggerDisplay(COLLECTION_DISPLAY)]
-    public class BitArray_ : IList<bool>, IReadOnlyList<bool>
+    public class BitArray_ : ICollection<bool>, IReadOnlyList<bool>
     {
         private readonly byte[] _bytes;
-        public int Count { get; private set; }
         public int SetBits { get; private set; }
+        public int Count { get; }
         public int UnsetBits => Count - SetBits;
         public int ByteCount => _bytes.Length;
 
@@ -153,6 +153,13 @@ namespace CustomCollections
                 array[arrayIndex] = this[arrayIndex++];
         }
 
+        public void CopyTo(BitArray_ bitArray)
+        {
+            if (ByteCount != bitArray.ByteCount) throw new InvalidOperationException();
+
+            _bytes.CopyTo(bitArray._bytes, 0);
+        }
+
         public void Clear() => Array.Clear(_bytes, 0, _bytes.Length);
 
         public IEnumerator<bool> GetEnumerator()
@@ -164,9 +171,7 @@ namespace CustomCollections
         }
 
         void ICollection<bool>.Add(bool item) => throw new NotSupportedException();
-        void IList<bool>.Insert(int index, bool item) => throw new NotSupportedException();
         bool ICollection<bool>.Remove(bool item) => throw new NotSupportedException();
-        void IList<bool>.RemoveAt(int index) => throw new NotSupportedException();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     }

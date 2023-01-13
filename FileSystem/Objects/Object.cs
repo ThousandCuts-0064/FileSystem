@@ -20,7 +20,7 @@ namespace FileSystemNS
 
         public string Name { get; private set; }
         public Directory Parent { get; private set; }
-        public string FullName => _fullName ?? GetFullName();
+        public string FullName => _fullName ?? EvaluateFullName();
 
         private protected Object(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
         {
@@ -75,9 +75,11 @@ namespace FileSystemNS
                                             ? FSResult.NameWasTaken
                                             : FSResult.Success;
 
-
         public virtual FSResult TrySetName(string name)
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             var result = ValidateName(Parent, name);
             if (result != FSResult.Success)
                 return result;
@@ -95,6 +97,9 @@ namespace FileSystemNS
 
         public virtual FSResult Clear()
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             ByteCount = 0;
             if (!TryGetSector(out var sector))
                 return FSResult.BadSectorFound;
@@ -151,7 +156,7 @@ namespace FileSystemNS
                 file._fullName = null;
         }
 
-        private string GetFullName()
+        private string EvaluateFullName()
         {
             StringBuilder_ sb = new StringBuilder_();
             Object curr = this;

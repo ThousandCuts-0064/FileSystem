@@ -64,7 +64,8 @@
     <Compile Include="Extensions\FSResultExt.cs" />
     <Compile Include="Objects\Object.cs" />
     <Compile Include="Enums\ObjectFlags.cs" />
-    <Compile Include="Progress.cs" />
+    <Compile Include="TaskProgress.cs" />
+    <Compile Include="ReadOnlyTaskProgress.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

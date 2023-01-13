@@ -81,29 +81,30 @@ namespace UI
             {
                 while (true)
                 {
-                    Console.Write(_currDir.FullName + '>');
-
                     if (_fileSystem.IsBusy)
                     {
                         double progress = 0;
-                        Console.CursorVisible = false;
                         int cursorLeft = Console.CursorLeft;
+                        int cursorTop = Console.CursorTop;
+
                         while (_fileSystem.IsBusy)
                         {
-                            if (progress == _fileSystem.Progress.Value)
+                            if (progress == _fileSystem.TaskProgress.Progress)
                                 System.Threading.Thread.Sleep(1);
 
-                            Console.Write($"{progress * 100}%");
-                            Console.CursorLeft = cursorLeft;
-                            progress = _fileSystem.Progress.Value;
+                            Console.CursorVisible = false;
+                            Console.Write(_fileSystem.TaskProgress);
+                            Console.SetCursorPosition(cursorLeft, cursorTop);
+                            progress = _fileSystem.TaskProgress.Progress;
                         }
 
-                        Console.WriteLine("100%");
+                        Console.WriteLine(_fileSystem.TaskProgress);
                         Console.WriteLine();
                         Console.CursorVisible = true;
                         continue;
                     }
 
+                    Console.Write(_currDir.FullName + '>');
                     string input = Console.ReadLine();
                     lock (_fileSystem)
                     {

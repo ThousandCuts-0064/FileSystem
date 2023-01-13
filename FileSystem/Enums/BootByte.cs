@@ -8,7 +8,7 @@ namespace FileSystemNS
         InitFail       = 0,
         InitSuccess    = 1 << 0,
         ForcedShutdown = 1 << 1,
-        None           = 1 << 2,
+        RootCorrupted    = 1 << 2,
         None1          = 1 << 3,
         None2          = 1 << 4,
         None3          = 1 << 5,

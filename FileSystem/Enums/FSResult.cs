@@ -20,5 +20,6 @@
         RootHasNoParent,
         NotEnoughSpace,
         BadSectorFound,
+        RootCorrupted,
     }
 }

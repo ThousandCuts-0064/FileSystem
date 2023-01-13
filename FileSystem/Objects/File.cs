@@ -38,22 +38,14 @@ namespace FileSystemNS
                     ? FSResult.Success
                     : FSResult.FormatNotSupported;
 
-        public bool TrySave() =>
-            TryGetSector(out var sector) && 
-            sector.TryGetLast(checked((int)ByteCount), out _) &&
-            sector.TryFindFree(out sector) && 
-            sector.TrySerializeChainFrom(this) &&
-            TryUpdateAddress(this, sector);
-
-        public bool TryLoad() => 
-            TryGetSector(out var sector) && 
-            sector.TryDeserializeChainTo(this);
-
         public override FSResult TrySetName(string name) =>
             base.TrySetName(AttachFormat(name, Format));
 
         public FSResult TrySetObject(object obj)
         {
+            if (FileSystem.IsRootCorrupted)
+                return FSResult.RootCorrupted;
+
             if (!(obj is null))
                 switch (Format)
                 {
@@ -89,6 +81,24 @@ namespace FileSystemNS
             Object = obj;
             return FSResult.Success;
         }
+
+        public FSResult TrySave() => FileSystem.IsRootCorrupted
+            ? FSResult.RootCorrupted
+            : !TryGetSector(out var sector) || !sector.TryGetLast(checked((int)ByteCount), out _)
+                ? FSResult.BadSectorFound
+                : !sector.TryFindFree(out sector) || !sector.TrySerializeChainFrom(this)
+                    ? FSResult.NotEnoughSpace
+                    : TryUpdateAddress(this, sector)
+                        ? FSResult.Success
+                        : FSResult.BadSectorFound;
+
+        public FSResult TryLoad() => FileSystem.IsRootCorrupted
+                ? FSResult.RootCorrupted
+                : !TryGetSector(out var sector)
+                    ? FSResult.BadSectorFound
+                    : sector.TryDeserializeChainTo(this) 
+                        ? FSResult.Success 
+                        : FSResult.NotEnoughSpace;
 
         internal object GetObjectDeepCopy()
         {
