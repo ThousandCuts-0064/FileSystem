@@ -153,11 +153,20 @@ namespace CustomCollections
                 array[arrayIndex] = this[arrayIndex++];
         }
 
-        public void CopyTo(BitArray_ bitArray)
+        public void CopyTo(byte[] array, int arrayIndex)
         {
-            if (ByteCount != bitArray.ByteCount) throw new InvalidOperationException();
+            if (array is null) throw new ArgumentNullException(nameof(array));
+            if (array.Length < ByteCount) throw new ArrayTooShortExcpetion(nameof(array));
+            if ((uint)arrayIndex > (uint)(array.Length - ByteCount)) throw new IndexOutOfBoundsException(nameof(arrayIndex));
 
-            _bytes.CopyTo(bitArray._bytes, 0);
+            _bytes.CopyTo(array, arrayIndex);
+        }
+
+        public void CopyFrom(byte[] array)
+        {
+            if (_bytes.Length != array.Length) throw new ArgumentOutOfRangeException(nameof(array.Length));
+
+            array.CopyTo(_bytes, 0);
         }
 
         public void Clear() => Array.Clear(_bytes, 0, _bytes.Length);

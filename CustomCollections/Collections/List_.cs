@@ -61,6 +61,7 @@ namespace CustomCollections
 
             if (source is ICollection<T> collection)
             {
+                _array = new T[collection.Count];
                 collection.CopyTo(_array, 0);
                 Count = collection.Count;
                 return;

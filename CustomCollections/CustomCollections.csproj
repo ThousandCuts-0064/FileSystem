@@ -44,6 +44,7 @@
   <ItemGroup>
     <Compile Include="Collections\BitArray_.cs" />
     <Compile Include="Collections\HashSet_.cs" />
+    <Compile Include="Collections\Queue_.cs" />
     <Compile Include="Collections\Stack_.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="ToReadOnlyExt.cs" />

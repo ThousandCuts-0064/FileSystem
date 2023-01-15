@@ -22,7 +22,7 @@ namespace FileSystemNS
         private readonly byte[] _reuseAddressArray = new byte[ADDRESS_BYTES];
         private readonly byte[] _reuseSectorArray;
         private readonly FileStream _stream;
-        private readonly TaskProgress _taskProgress = new TaskProgress();
+        private readonly TaskInfo _taskInfo = new TaskInfo();
         private readonly long _badSectorsAddress;
         private BootByte _bootByte;
 
@@ -39,14 +39,13 @@ namespace FileSystemNS
         internal bool IsRootCorrupted => _bootByte.HasFlag(BootByte.RootCorrupted);
 
         public Directory RootDirectory { get; private set; }
-        public ReadOnlyTaskProgress TaskProgress { get; }
-        public bool IsBusy { get; private set; }
+        public ReadOnlyTaskInfo TaskInfo { get; }
         public long TotalSize { get; }
 
         // Partial initialization. RootDirectory required.
         private FileSystem(FileStream fileStream, BootByte bootByte, long totalSize, ushort sectorSize, long sectorCount, BitArray_ bitMap, BitArray_ badSectors)
         {
-            TaskProgress = new ReadOnlyTaskProgress(_taskProgress);
+            TaskInfo = new ReadOnlyTaskInfo(_taskInfo);
 
             _stream = fileStream;
             _bootByte = bootByte;
@@ -274,6 +273,8 @@ namespace FileSystemNS
         }
 
         internal Sector GetEmptySector() => Sector.GetEmpty(this);
+
+        internal bool ValidateSectorAt(long address) => Sector.ValidateAt(this, address);
 
         internal bool TryGetSector(long address, out Sector sector) =>
             Sector.TryGet(this, address, out sector);
@@ -512,23 +513,70 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteIndex - firstSectorSpace, SectorInfoSize, out byteIndex);
         }
 
-        private Task ValidateSectors() => Task.Run(() =>
+        private Task ValidateSectors()
         {
-            IsBusy = true;
-            _taskProgress.Name = "Validating sectors";
-            lock (this)
-            {
-                _badSectors.CopyTo(_bitMap);
+            if (_taskInfo.IsRunning)
+                _taskInfo.Cancel().Wait();
 
-                for (int i = 0; i < 1000; i++)
+            return _taskInfo.Run(() =>
+            {
+                lock (this)
                 {
-                    _taskProgress.Progress = i / 1000d;
-                    System.Threading.Thread.Sleep(1);
+                    _taskInfo.Name = "Validating sectors";
+                    BitArray_ newBitMap = new BitArray_(_bitMap.ByteCount);
+                    int validated = 0;
+
+                    int lastIndex = 0;
+                    for (int i = 0; i < _badSectors.Count; i++)
+                    {
+                        if (_taskInfo.IsCancellationRequested) return;
+
+                        lastIndex = _badSectors.IndexOf(true, lastIndex);
+                        newBitMap[lastIndex] = true;
+                        _taskInfo.Progress = validated++ / SectorCount;
+                    }
+
+                    Queue_<Directory> directoryQueue = new Queue_<Directory>();
+                    directoryQueue.Enque(RootDirectory);
+
+                    while (directoryQueue.Count > 0)
+                    {
+                        if (_taskInfo.IsCancellationRequested) return;
+
+                        Directory curDir = directoryQueue.Deque();
+
+                        ValidateSectorsOf(curDir);
+
+                        for (int i = 0; i < curDir.Files.Count; i++)
+                        {
+                            if (_taskInfo.IsCancellationRequested) return;
+
+                            File file = curDir.Files[i];
+
+                            ValidateSectorsOf(file);
+                        }
+
+                        for (int i = 0; i < curDir.Directories.Count; i++)
+                        {
+                            if (_taskInfo.IsCancellationRequested) return;
+
+                            directoryQueue.Enque(curDir.Directories[i]);
+                        }
+                    }
+
+                    byte[] bytes = new byte[_bitMap.ByteCount];
+                    newBitMap.CopyTo(bytes, 0);
+                    _bitMap.CopyFrom(bytes);
+                    _stream.WriteAt(BITMAP_INDEX, bytes, 0, bytes.Length);
+                    _taskInfo.Progress = 1;
+
+                    bool ValidateSectorsOf(Object obj)
+                    {
+                        return true;
+                    }
                 }
-            }
-            _taskProgress.Progress = 1;
-            IsBusy = false;
-        });
+            });
+        }
 
         void IDisposable.Dispose() => Close();
 
@@ -596,9 +644,7 @@ namespace FileSystemNS
 
             public static Sector GetEmpty(FileSystem fileSystem) => new Sector(fileSystem, 0);
 
-            public static bool TryGet(FileSystem fileSystem, long address, out Sector sector) => TryGet(fileSystem, address, true, out sector);
-
-            private static bool TryGet(FileSystem fileSystem, long address, bool validateAllIfBad, out Sector sector)
+            public static bool ValidateAt(FileSystem fileSystem, long address)
             {
                 if (fileSystem is null) throw new ArgumentNullException(nameof(fileSystem));
                 if (address % fileSystem.SectorSize != 0 ||
@@ -613,19 +659,30 @@ namespace FileSystemNS
                     for (int y = 0; y < resiliencyByteCount; y++)
                         sectorBytes[resiliencyindex + y] ^= sectorBytes[i * resiliencyByteCount + y];
 
-                sector = new Sector(fileSystem, address);
                 for (int i = 0; i < resiliencyByteCount; i++)
                     if (sectorBytes[resiliencyindex + i] != 0)
                     {
-                        if (!fileSystem._bitMap[checked((int)address / fileSystem.SectorSize)]) sector.Allocate();
-                        sector.MarkAsBad();
-                        if (address == fileSystem.RootAddress) fileSystem._bootByte |= BootByte.RootCorrupted;
-                        else if (validateAllIfBad) fileSystem.ValidateSectors();
-                        sector = GetEmpty(fileSystem);
+                        new Sector(fileSystem, address).MarkAsBad();
                         return false;
                     }
 
                 return true;
+            }
+
+            public static bool TryGet(FileSystem fileSystem, long address, out Sector sector)
+            {
+                if (ValidateAt(fileSystem, address))
+                {
+                    sector = new Sector(fileSystem, address);
+                    return true;
+                }
+                else
+                {
+                    if (address == fileSystem.RootAddress) fileSystem._bootByte |= BootByte.RootCorrupted;
+                    else fileSystem.ValidateSectors();
+                    sector = GetEmpty(fileSystem);
+                    return false;
+                }
             }
 
             public bool TryGetNext(out Sector sector)
@@ -770,15 +827,22 @@ namespace FileSystemNS
 
             public bool TryFindFree(out Sector sector)
             {
+                sector = GetEmpty(_fs);
                 int index = 0;
-                bool isBad;
+                Sector curr;
                 do
                 {
                     index = BitMap.IndexOf(false, index);
-                    isBad = !TryGet(_fs, index * SectorSize, false, out sector);
+                    if (index == -1)
+                        return false;
+
+                    curr = new Sector(_fs, index * SectorSize);
+                    curr.Allocate();
                 }
-                while (index != -1 && isBad);
-                return index != -1;
+                while (!ValidateAt(_fs, curr.Address));
+
+                sector = curr;
+                return true;
             }
 
             public void Allocate()
