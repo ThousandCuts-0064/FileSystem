@@ -14,7 +14,7 @@ namespace FileSystemNS
         public string Name { get; set; }
         public double Progress { get; set; }
         public bool IsCancellationRequested => _cancellationTokenSource.IsCancellationRequested;
-        public bool IsRunning => Task != null && (!Task.IsCompleted || !Task.IsFaulted);
+        public bool IsRunning => Task != null && !Task.IsCompleted && !Task.IsFaulted;
 
         public TaskInfo() => Reset();
 

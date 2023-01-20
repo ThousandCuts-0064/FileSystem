@@ -84,7 +84,7 @@ namespace FileSystemNS
 
         public FSResult TrySave() => FileSystem.IsRootCorrupted
             ? FSResult.RootCorrupted
-            : !TryGetSector(out var sector) || !sector.TryGetLast(checked((int)ByteCount), out _)
+            : !TryGetSector(out var sector) || !sector.TryGetLast(FileSystem.TotalSectors(ByteCount) - 1, out _)
                 ? FSResult.BadSectorFound
                 : !sector.TryFindFree(out sector) || !sector.TrySerializeChainFrom(this)
                     ? FSResult.NotEnoughSpace

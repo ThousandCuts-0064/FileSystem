@@ -57,7 +57,7 @@ namespace CustomCollections
             _array[Count++] = item;
         }
 
-        public T Peek() => _array[Count - 1];
+        public T Peek() => Count > 0 ? _array[Count - 1] : throw new CollectionEmptyException();
 
         public bool Contains(T item) => _array.Contains_(item, 0, Count);
 

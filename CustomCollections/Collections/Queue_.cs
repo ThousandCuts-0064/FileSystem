@@ -12,7 +12,7 @@ namespace CustomCollections
     {
         private T[] _array;
         private int _head;
-        private int _tail;
+        private int _tail = -1;
 
         public int Count { get; private set; }
 
@@ -60,7 +60,7 @@ namespace CustomCollections
                     _head = 0;
                     _tail = Count - 1;
                 }
-                else
+                else if (Count > 0)
                 {
                     Array.Copy(_array, _head, arr, 0, Count - _head);
                     Array.Copy(_array, 0, arr, _tail, _tail + 1);
@@ -74,7 +74,7 @@ namespace CustomCollections
             _array[_tail] = item;
         }
 
-        public T Peek() => _array[_tail];
+        public T Peek() => Count > 0 ? _array[_tail] : throw new CollectionEmptyException();
 
         public bool Contains(T item) => _array.Contains_(item, 0, Count);
 
@@ -118,7 +118,7 @@ namespace CustomCollections
 
             Count = 0;
             _head = 0;
-            _tail = 0;
+            _tail = -1;
         }
 
         public IEnumerator<T> GetEnumerator()

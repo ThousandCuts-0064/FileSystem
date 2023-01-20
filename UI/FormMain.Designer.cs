@@ -29,13 +29,27 @@ namespace UI
         /// </summary>
         private void InitializeComponent()
         {
+            this.listShortcuts = new System.Windows.Forms.ListView();
             this.SuspendLayout();
+            // 
+            // listShortcuts
+            // 
+            this.listShortcuts.Activation = System.Windows.Forms.ItemActivation.TwoClick;
+            this.listShortcuts.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.listShortcuts.Location = new System.Drawing.Point(0, 0);
+            this.listShortcuts.MultiSelect = false;
+            this.listShortcuts.Name = "listShortcuts";
+            this.listShortcuts.Size = new System.Drawing.Size(1067, 554);
+            this.listShortcuts.TabIndex = 0;
+            this.listShortcuts.UseCompatibleStateImageBehavior = false;
             // 
             // FormMain
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(1067, 554);
+            this.Controls.Add(this.listShortcuts);
+            this.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.Name = "FormMain";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "FormMain";
@@ -46,6 +60,8 @@ namespace UI
         }
 
         #endregion
+
+        private System.Windows.Forms.ListView listShortcuts;
     }
 }
 

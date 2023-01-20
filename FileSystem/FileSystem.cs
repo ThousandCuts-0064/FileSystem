@@ -10,6 +10,7 @@ using Core;
 using static Core.Constants;
 using static FileSystemNS.Constants;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace FileSystemNS
 {
@@ -54,10 +55,6 @@ namespace FileSystemNS
             SectorCount = sectorCount;
             _bitMap = bitMap;
             _badSectors = badSectors;
-
-            if (_bootByte.HasFlag(BootByte.ForcedShutdown))
-                ValidateSectors()
-                    .ContinueWith(validateSectorsTask => _bootByte &= ~BootByte.ForcedShutdown);
 
             _reuseSectorArray = new byte[SectorSize];
             ResiliencyByteCount = (ushort)(SectorSize / RESILIENCY_FACTOR);
@@ -121,6 +118,10 @@ namespace FileSystemNS
             FileSystem fileSystem = new FileSystem(fileStream, bootByte, totalSize, sectorSize, sectorCount, bitMap, badSectors);
 
             fileSystem.RootDirectory = Directory.LoadRoot(fileSystem);
+
+            if (fileSystem._bootByte.HasFlag(BootByte.ForcedShutdown))
+                fileSystem.ValidateSectors()
+                    .ContinueWith(validateSectorsTask => fileSystem._bootByte &= ~BootByte.ForcedShutdown);
 
             // In case of forced shutdown the bit will be true
             fileStream.WriteByteAt(0, (byte)(bootByte | BootByte.ForcedShutdown));
@@ -279,7 +280,7 @@ namespace FileSystemNS
         internal bool TryGetSector(long address, out Sector sector) =>
             Sector.TryGet(this, address, out sector);
 
-        internal bool TryUpdateSector(Object obj, Sector sector)
+        internal bool TryUpdateSector(Object obj, Sector newSector)
         {
             if (!obj.Parent.TryGetSector(out Sector parentSector))
                 return false;
@@ -289,7 +290,9 @@ namespace FileSystemNS
             if (!parentSector.TryGetLast(sectorCount, out Sector targetSector))
                 return false;
 
-            sector.Address.GetBytes(_reuseAddressArray, 0);
+            FreeSectorsOf(obj);
+
+            newSector.Address.GetBytes(_reuseAddressArray, 0);
             _stream.WriteAt(targetSector.Address + objIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
             targetSector.UpdateResiliancy();
             return true;
@@ -494,7 +497,11 @@ namespace FileSystemNS
                     : FSResult.BadSectorFound;
         }
 
-        private int TotalSectors(long byteCount) => FullSectorsAndByteIndex(byteCount, out long byteIndex) + byteIndex > 0 ? 1 : 0;
+        internal int TotalSectors(long byteCount)
+        {
+            byteCount -= FirstSectorInfoSize;
+            return byteCount <= 0 ? 1 : 1 + checked((int)Math_.DivCeiling(byteCount, SectorInfoSize));
+        }
 
         private int FullSectorsAndByteIndex(long byteCount, out long byteIndex)
         {
@@ -513,26 +520,19 @@ namespace FileSystemNS
                 : 1 + (int)Math.DivRem(byteIndex - firstSectorSpace, SectorInfoSize, out byteIndex);
         }
 
-        private Task ValidateSectors()
-        {
-            if (_taskInfo.IsRunning)
-                _taskInfo.Cancel().Wait();
-
-            return _taskInfo.Run(() =>
+        private Task ValidateSectors() => _taskInfo.IsRunning
+            ? _taskInfo.Task
+            : _taskInfo.Run(() =>
             {
                 lock (this)
                 {
                     _taskInfo.Name = "Validating sectors";
-                    BitArray_ newBitMap = new BitArray_(_bitMap.ByteCount);
+                    BitArray_ newBitMap = new BitArray_(_bitMap.Count);
                     int validated = 0;
 
-                    int lastIndex = 0;
-                    for (int i = 0; i < _badSectors.Count; i++)
+                    while (validated < RootAddress / SectorSize)
                     {
-                        if (_taskInfo.IsCancellationRequested) return;
-
-                        lastIndex = _badSectors.IndexOf(true, lastIndex);
-                        newBitMap[lastIndex] = true;
+                        newBitMap[validated] = true;
                         _taskInfo.Progress = validated++ / SectorCount;
                     }
 
@@ -545,15 +545,15 @@ namespace FileSystemNS
 
                         Directory curDir = directoryQueue.Deque();
 
-                        ValidateSectorsOf(curDir);
+                        if (ValidateSectorsOf(curDir, out int curValidated))
+                            _taskInfo.Progress = (validated += curValidated) / SectorCount;
 
                         for (int i = 0; i < curDir.Files.Count; i++)
                         {
                             if (_taskInfo.IsCancellationRequested) return;
 
-                            File file = curDir.Files[i];
-
-                            ValidateSectorsOf(file);
+                            if (ValidateSectorsOf(curDir.Files[i], out curValidated))
+                                _taskInfo.Progress = (validated += curValidated) / SectorCount;
                         }
 
                         for (int i = 0; i < curDir.Directories.Count; i++)
@@ -564,24 +564,58 @@ namespace FileSystemNS
                         }
                     }
 
+                    int lastIndex = 0;
+                    do
+                    {
+                        if (_taskInfo.IsCancellationRequested) return;
+
+                        lastIndex = newBitMap.IndexOf(false, lastIndex);
+
+                        if (_badSectors[lastIndex] || !Sector.ValidateAt(this, lastIndex * SectorSize))
+                            newBitMap[lastIndex] = true;
+
+                        _taskInfo.Progress = validated++ / SectorCount;
+                    }
+                    while (lastIndex != -1 && ++lastIndex < newBitMap.Count);
+
                     byte[] bytes = new byte[_bitMap.ByteCount];
                     newBitMap.CopyTo(bytes, 0);
                     _bitMap.CopyFrom(bytes);
                     _stream.WriteAt(BITMAP_INDEX, bytes, 0, bytes.Length);
                     _taskInfo.Progress = 1;
 
-                    bool ValidateSectorsOf(Object obj)
+                    bool ValidateSectorsOf(Object obj, out int curValidated)
                     {
+                        curValidated = 0;
+
+                        if (!obj.TryGetSector(out Sector sector))
+                            return false;
+
+                        newBitMap[checked((int)sector.Address / SectorSize)] = true;
+                        _taskInfo.Progress = (validated + ++curValidated) / SectorCount;
+
+                        int totalSectors = TotalSectors(obj.ByteCount);
+
+                        for (int i = 1; i < totalSectors; i++)
+                        {
+                            if (_taskInfo.IsCancellationRequested) return true;
+
+                            if (!sector.TryGetNext(out sector))
+                                return false;
+
+                            newBitMap[checked((int)sector.Address / SectorSize)] = true;
+                            _taskInfo.Progress = (validated + ++curValidated) / SectorCount;
+                        }
+
                         return true;
                     }
                 }
             });
-        }
 
         void IDisposable.Dispose() => Close();
 
 
-
+        [DebuggerDisplay(nameof(Address) + ": {" + nameof(Address) + "}")]
         internal readonly ref struct Sector
         {
             private readonly FileSystem _fs;
@@ -697,10 +731,10 @@ namespace FileSystemNS
                 Stream.WriteAt(Address + NextSectorIndex, ReuseAddressArray, 0, ADDRESS_BYTES);
             }
 
-            public bool TryGetLast(int count, out Sector sector)
+            public bool TryGetLast(int remainingCount, out Sector sector)
             {
                 sector = this;
-                while (count-- > 0)
+                while (remainingCount-- > 0)
                     if (!sector.TryGetNext(out sector))
                         return false;
                 return true;
@@ -763,7 +797,7 @@ namespace FileSystemNS
 
                 int index = 0;
                 int countFirstSector = Math.Min(count, FirstSectorInfoSize);
-                Stream.WriteAt(ADDRESS_BYTES + INFO_BYTES_INDEX, bytes, index, countFirstSector);
+                Stream.WriteAt(Address + INFO_BYTES_INDEX, bytes, index, countFirstSector);
                 count -= countFirstSector;
 
                 if (count == 0)
@@ -837,7 +871,6 @@ namespace FileSystemNS
                         return false;
 
                     curr = new Sector(_fs, index * SectorSize);
-                    curr.Allocate();
                 }
                 while (!ValidateAt(_fs, curr.Address));
 

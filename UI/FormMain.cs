@@ -3,13 +3,11 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Core;
 using CustomCollections;
 using CustomQuery;
 using ExceptionsNS;
 using FileSystemNS;
 using Text;
-using static FileSystemNS.Constants;
 
 namespace UI
 {
@@ -54,26 +52,29 @@ namespace UI
         private const string IM = nameof(IM);
         private const string EX = nameof(EX);
         #endregion
+
         private readonly FileSystem _fileSystem;
         private readonly IntPtr _consolePtr;
         private Directory _currDir;
-        public static FormMain Get { get; private set; }
 
         public FormMain(FileSystem fileSystem)
         {
-            _consolePtr = GetConsoleWindow();
             InitializeComponent();
-            //WindowState = FormWindowState.Minimized;
             _fileSystem = fileSystem;
-            Get = this;
+            _consolePtr = GetConsoleWindow();
             _currDir = _fileSystem.RootDirectory;
+            Text = _fileSystem.RootDirectory.Name;
+            listShortcuts.SmallImageList = SystemImages.List;
+            listShortcuts.LargeImageList = SystemImages.List;
         }
 
+        #region DllImport
         [DllImport("USER32.DLL")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("kernel32.dll", ExactSpelling = true)]
         public static extern IntPtr GetConsoleWindow();
+        #endregion
 
         private void FormMain_Load(object sender, EventArgs e)
         {
@@ -653,6 +654,11 @@ namespace UI
                     }
                 }
             });
+
+            Shortcut shortcutFileExplorer = new Shortcut("File Explorer", () => new FileExplorer(_fileSystem.RootDirectory).Show());
+
+            listShortcuts.Items.Add(shortcutFileExplorer.Name, nameof(SystemImages.FileExplorer)).Tag = shortcutFileExplorer;
+            listShortcuts.ItemActivate += (object sender1, EventArgs e1) => ((Shortcut)listShortcuts.FocusedItem.Tag).Action();
         }
 
         private void FormMain_Shown(object sender, EventArgs e)

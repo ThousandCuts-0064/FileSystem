@@ -13,13 +13,13 @@ namespace FileSystemNS
     {
         private string _fullName;
 
-        internal long ByteCount { get; private protected set; }
         internal long Address { get; private protected set; }
         internal ObjectFlags ObjectFlags { get; private set; }
-        internal FileSystem FileSystem { get; }
 
+        public long ByteCount { get; private protected set; }
         public string Name { get; private set; }
         public Directory Parent { get; private set; }
+        public FileSystem FileSystem { get; }
         public string FullName => _fullName ?? EvaluateFullName();
 
         private protected Object(FileSystem fileSystem, Directory parent, long address, ObjectFlags objectFlags, string name, long byteCount)
@@ -122,12 +122,12 @@ namespace FileSystemNS
             return false;
         }
 
-        internal bool TryUpdateAddress(Object obj, FileSystem.Sector sector)
+        internal bool TryUpdateAddress(Object obj, FileSystem.Sector newSector)
         {
-            if (!FileSystem.TryUpdateSector(this, sector))
+            if (!FileSystem.TryUpdateSector(this, newSector))
                 return false;
 
-            obj.Address = sector.Address;
+            obj.Address = newSector.Address;
             return true;
         }
 

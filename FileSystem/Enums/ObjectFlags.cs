@@ -8,9 +8,8 @@ namespace FileSystemNS
         None,
 
         Directory   = 1 << 0,
-        Interrupted = 1 << 1,
-        System      = 1 << 2,
-        Hidden      = 1 << 3,
+        System      = 1 << 1,
+        Hidden      = 1 << 2,
 
         SysDir = System | Directory
     }

@@ -89,6 +89,8 @@ namespace CustomCollections
         public int IndexOf(bool item) => IndexOf(item, 0);
         public int IndexOf(bool item, int startIndex)
         {
+            if (startIndex >= Count) throw new IndexOutOfBoundsException();
+
             byte val = item ? byte.MinValue : byte.MaxValue;
             int i = Math.DivRem(startIndex, BYTE_BITS, out int leftover);
             int fullBytes = Math.DivRem(Count, BYTE_BITS, out int remaining);
