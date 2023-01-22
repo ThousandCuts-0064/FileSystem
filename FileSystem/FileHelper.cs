@@ -154,6 +154,13 @@ namespace FileSystemNS
                     case 'S':
                         if (!ushort.TryParse(str, out sectorSize))
                             return "Invalid sector size.";
+
+                        if (sectorSize % RESILIENCY_FACTOR != 0)
+                            return $"Sector size must be divisible by {RESILIENCY_FACTOR}.";
+
+                        if (sectorSize < 512)
+                            return "Sector size must be at least 512 bytes.";
+
                         break;
 
                     case 'T':

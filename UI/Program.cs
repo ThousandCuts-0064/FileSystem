@@ -8,6 +8,7 @@ namespace UI
     static class Program
     {
         public static bool Reload { get; set; }
+        public static bool ConsoleOnTop { get; set; } = false;
 
         /// <summary>
         /// The main entry point for the application.

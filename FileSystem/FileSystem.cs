@@ -16,8 +16,6 @@ namespace FileSystemNS
 {
     public sealed class FileSystem : IDisposable
     {
-        private const int RESILIENCY_FACTOR = 64;
-
         private readonly BitArray_ _bitMap;
         private readonly BitArray_ _badSectors;
         private readonly byte[] _reuseAddressArray = new byte[ADDRESS_BYTES];
@@ -424,22 +422,22 @@ namespace FileSystemNS
 
         internal FSResult TryRemoveDirectory(Directory parent, int dirIndex)
         {
-            if (parent.TryGetSector(out Sector parentSector))
+            if (!parent.TryGetSector(out Sector parentSector))
                 return FSResult.BadSectorFound;
 
             int dirSectorCount = FullSectorsAndByteIndex(dirIndex * ADDRESS_BYTES, out long dirShortIndex);
 
-            if (parentSector.TryGetLast(dirSectorCount, out Sector dirSector))
+            if (!parentSector.TryGetLast(dirSectorCount, out Sector dirSector))
                 return FSResult.BadSectorFound;
 
             int remainingDirSectors = FullSectorsAndByteIndex((parent.Directories.Count - 1) * ADDRESS_BYTES, out long lastDirIndex) - dirSectorCount;
 
-            if (dirSector.TryGetLast(remainingDirSectors, out Sector lastDirSector))
+            if (!dirSector.TryGetLast(remainingDirSectors, out Sector lastDirSector))
                 return FSResult.BadSectorFound;
 
             int fileSectors = FullSectorsAndByteIndex(lastDirIndex, parent.Files.Count * ADDRESS_BYTES, out long lastFileIndex);
 
-            if (lastDirSector.TryGetLast(fileSectors, out Sector lastFileSector))
+            if (!lastDirSector.TryGetLast(fileSectors, out Sector lastFileSector))
                 return FSResult.BadSectorFound;
 
             _stream.ReadAt(lastDirSector.Address + lastDirIndex, _reuseAddressArray, 0, ADDRESS_BYTES);

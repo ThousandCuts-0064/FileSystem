@@ -260,7 +260,7 @@ namespace FileSystemNS
                 return FSResult.RootCorrupted;
 
             newName = newName is null
-                ? GetNameWithCopyCount(file.Name)
+                ? GetNameWithRepeatCount(file.Name)
                 : newName + '.' + file.Format.ToLower();
             var result = ValidateName(this, newName);
             if (result != FSResult.Success)
@@ -287,32 +287,59 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        public FSResult TryRemoveDirectory(string name)
+        public FSResult TryRemoveDirectory(string name, out Directory parent)
         {
+            parent = this;
+
             if (FileSystem.IsRootCorrupted)
                 return FSResult.RootCorrupted;
 
-            var result = ValidateName(null, name);
+            var result = ValidateName(null, name, true);
             if (result != FSResult.Success) return result;
 
-            int index = _directories.IndexOf_(dir => dir.Name == name);
+            if (name == FileSystem.RootDirectory.Name)
+                return FSResult.RootHasNoParent;
+
+            if (name == CUR_DIR)
+            {
+                if (Parent is null)
+                    return FSResult.RootHasNoParent;
+
+                parent = Parent;
+                name = Name;
+            }
+            else if (name == PAR_DIR)
+            {
+                if (Parent?.Parent is null)
+                    return FSResult.RootHasNoParent;
+
+                parent = Parent.Parent;
+                name = Parent.Name;
+            }
+
+            int index = parent._directories.IndexOf_(dir => dir.Name == name);
             if (index == -1) return FSResult.NameWasNotFound;
 
-            FileSystem.FreeSectorsOf(_directories[index]);
-            result = FileSystem.TryRemoveDirectory(this, index);
+            result = FileSystem.FreeSectorsOf(parent._directories[index]);
+            if (result != FSResult.Success) return result;
+
+            result = FileSystem.TryRemoveDirectory(parent, index);
+            if (result != FSResult.Success) return result;
+
             if (index == -1) return result;
 
-            _directories.RemoveAt(index);
-            ByteCount -= ADDRESS_BYTES;
-            _files.CycleRight();
+            parent._directories.RemoveAt(index);
+            parent._files.CycleRight();
+            parent.ByteCount -= ADDRESS_BYTES;
             return FSResult.Success;
         }
 
-        public FSResult TryRemoveDirectory(string path, out string faultedName)
+        public FSResult TryRemoveDirectory(string path, out string faultedName, out Directory parent)
         {
+            parent = null;
             var result = TryFollowPath(path, out Directory preLastDir, out string lastName, out faultedName);
             return result == FSResult.Success
-                ? preLastDir.TryRemoveDirectory(lastName)
+                ? preLastDir.TryRemoveDirectory(lastName, out parent)
                 : result;
         }
 
@@ -327,7 +354,9 @@ namespace FileSystemNS
             int index = _files.IndexOf_(dir => dir.Name == name);
             if (index == -1) return FSResult.NameWasNotFound;
 
-            FileSystem.FreeSectorsOf(_files[index]);
+            result = FileSystem.FreeSectorsOf(_files[index]);
+            if (result != FSResult.Success) return result;
+
             result = FileSystem.TryRemoveFile(this, index);
             if (result != FSResult.Success) return result;
 
@@ -342,6 +371,43 @@ namespace FileSystemNS
             return result == FSResult.Success
                 ? preLastDir.TryRemoveFile(lastName)
                 : result;
+        }
+
+        public string GetNameWithRepeatCount(string name)
+        {
+            ulong count = 0;
+            int dotIndex = name.LastIndexOf_('.');
+            string format = name.Substring(dotIndex + 1);
+            bool exits = _files.Contains_(f => f.Name == name);
+            for (int i = 0; i < _files.Count; i++)
+            {
+                if (_files[i].Format.ToLower() != format)
+                    continue;
+
+                string fName = _files[i].Name;
+                int closeBracket = fName.Length - format.Length - 2;
+                if (dotIndex < fName.Length &&
+                    fName[dotIndex] == '(' &&
+                    fName[closeBracket] == ')' &&
+                    ulong.TryParse(fName.SubstringAt_(dotIndex + 1, closeBracket - 1), out ulong currCount) &&
+                    currCount > count)
+                    count = currCount;
+            }
+
+            return name.Substring_(0, dotIndex) + (exits ? $"({count + 1})" : "") + '.' + format;
+        }
+
+        public bool IsChildOf(Directory directory)
+        {
+            Directory parent = Parent;
+            while (!(parent is null))
+            {
+                if (parent == directory)
+                    return true;
+
+                parent = parent.Parent;
+            }
+            return false;
         }
 
         public override FSResult Clear()
@@ -401,30 +467,7 @@ namespace FileSystemNS
             return bytes;
         }
 
-        private protected override bool TryRemoveFromParent() => Parent.TryRemoveDirectory(Name) == FSResult.Success;
-
-        private string GetNameWithCopyCount(string name)
-        {
-            ulong count = 0;
-            int dotIndex = name.LastIndexOf_('.');
-            string format = name.Substring(dotIndex + 1);
-            bool exits = _files.Contains_(f => f.Name == name);
-            for (int i = 0; i < _files.Count; i++)
-            {
-                if (_files[i].Format.ToLower() != format)
-                    continue;
-
-                string fName = _files[i].Name;
-                int closeBracket = fName.Length - format.Length - 2;
-                if (fName[dotIndex] == '(' &&
-                    fName[closeBracket] == ')' &&
-                    ulong.TryParse(fName.SubstringAt_(dotIndex + 1, closeBracket - 1), out ulong currCount) &&
-                    currCount > count)
-                    count = currCount;
-            }
-
-            return name.Substring_(0, dotIndex) + (exits ? $"({count + 1})" : "") + '.' + format;
-        }
+        private protected override bool TryRemoveFromParent() => Parent.TryRemoveDirectory(Name, out _) == FSResult.Success;
 
         private FSResult TryFollowPath(string path, out Directory preLastDir, out string lastName, out string faultedName, bool create = false)
         {

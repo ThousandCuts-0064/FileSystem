@@ -172,9 +172,9 @@ namespace CustomCollections
             if ((uint)count > (uint)Count) throw new IndexOutOfBoundsException(nameof(count));
             if (Count - count < 0) throw new ArrayTooShortExcpetion(nameof(count));
 
-            Count -= count;
             for (int i = 0; i < count; i++)
                 _array[Count - 1 + i] = default;
+            Count -= count;
         }
 
         public void Trim() => Capacity = Count;

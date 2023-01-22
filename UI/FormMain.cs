@@ -55,14 +55,14 @@ namespace UI
 
         private readonly FileSystem _fileSystem;
         private readonly IntPtr _consolePtr;
-        private Directory _currDir;
+        private Directory _curDir;
 
         public FormMain(FileSystem fileSystem)
         {
             InitializeComponent();
             _fileSystem = fileSystem;
             _consolePtr = GetConsoleWindow();
-            _currDir = _fileSystem.RootDirectory;
+            _curDir = _fileSystem.RootDirectory;
             Text = _fileSystem.RootDirectory.Name;
             listShortcuts.SmallImageList = SystemImages.List;
             listShortcuts.LargeImageList = SystemImages.List;
@@ -105,7 +105,7 @@ namespace UI
                         continue;
                     }
 
-                    Console.Write(_currDir.FullName + '>');
+                    Console.Write(_curDir.FullName + '>');
                     string input = Console.ReadLine();
                     lock (_fileSystem)
                     {
@@ -196,10 +196,10 @@ namespace UI
 
                             case TREE:
                             {
-                                Directory directory = _currDir;
+                                Directory directory = _curDir;
 
                                 if (commands.Length > 1 &&
-                                        _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                        _curDir.TryFindDirectory(commands[1], out directory, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -252,10 +252,10 @@ namespace UI
                             case LS:
                             case DIR:
                             {
-                                Directory directory = _currDir;
+                                Directory directory = _curDir;
 
                                 if (commands.Length > 1 &&
-                                        _currDir.TryFindDirectory(commands[1], out directory, out string faultedName)
+                                        _curDir.TryFindDirectory(commands[1], out directory, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -290,11 +290,11 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryFindDirectory(commands[1], out Directory directory, out string faultedName)
+                                if (_curDir.TryFindDirectory(commands[1], out Directory directory, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
-                                _currDir = directory;
+                                _curDir = directory;
                                 continue;
                             }
 
@@ -307,7 +307,7 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryFindFile(commands[1], out File file, out string faultedName)
+                                if (_curDir.TryFindFile(commands[1], out File file, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -348,7 +348,7 @@ namespace UI
 
                                 string[] args = commands[1].Split_(' ', 2);
 
-                                if (_currDir.TryFindFile(args[0], out File file, out string faultedName)
+                                if (_curDir.TryFindFile(args[0], out File file, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -381,7 +381,7 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryFindObject(args[0], out FileSystemNS.Object obj, out string faultedName)
+                                if (_curDir.TryFindObject(args[0], out FileSystemNS.Object obj, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -404,11 +404,11 @@ namespace UI
                                 string[] args = commands[1].Split_(' ', 3);
                                 string dirTargetName = args.Length == 1 ? "." : args[1];
 
-                                if (_currDir.TryFindFile(args[0], out File file, out string faultedFileName)
+                                if (_curDir.TryFindFile(args[0], out File file, out string faultedFileName)
                                         .IsError(Console.WriteLine, faultedFileName))
                                     break;
 
-                                if (_currDir.TryFindDirectory(dirTargetName, out Directory directory, out string faultedDirName)
+                                if (_curDir.TryFindDirectory(dirTargetName, out Directory directory, out string faultedDirName)
                                         .IsError(Console.WriteLine, faultedDirName))
                                     break;
 
@@ -428,7 +428,7 @@ namespace UI
                                     continue;
                                 }
 
-                                if (_currDir.TryFindObject(commands[1], out FileSystemNS.Object obj, out string faultedName)
+                                if (_curDir.TryFindObject(commands[1], out FileSystemNS.Object obj, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -446,7 +446,7 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryCreateDirectory(commands[1].Split_(' ')[0], out _, out string faultedName)
+                                if (_curDir.TryCreateDirectory(commands[1].Split_(' ')[0], out _, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -462,7 +462,7 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryCreateFile(commands[1].Split_(' ')[0], out _, out string faultedName)
+                                if (_curDir.TryCreateFile(commands[1].Split_(' ')[0], out _, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -478,9 +478,12 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryRemoveDirectory(commands[1], out string faultedName)
+                                if (_curDir.TryRemoveDirectory(commands[1], out string faultedName, out Directory parent)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
+
+                                if (_curDir.IsChildOf(parent))
+                                    _curDir = parent;
 
                                 continue;
                             }
@@ -494,7 +497,7 @@ namespace UI
                                     break;
                                 }
 
-                                if (_currDir.TryRemoveFile(commands[1], out string faultedName)
+                                if (_curDir.TryRemoveFile(commands[1], out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -541,7 +544,7 @@ namespace UI
                                             : args[1]) +
                                         '.' + extFileExtension;
 
-                                if (_currDir.TryCreateFile(internalFileName, out File file, out string faultedName)
+                                if (_curDir.TryCreateFile(internalFileName, out File file, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -596,7 +599,7 @@ namespace UI
 
                                 string[] args = commands[1].Split(' ');
 
-                                if (_currDir.TryFindFile(args[0], out File file, out string faultedName)
+                                if (_curDir.TryFindFile(args[0], out File file, out string faultedName)
                                         .IsError(Console.WriteLine, faultedName))
                                     break;
 
@@ -663,8 +666,11 @@ namespace UI
 
         private void FormMain_Shown(object sender, EventArgs e)
         {
-            SetForegroundWindow(Handle); // Allows the method bellow to work more than 1 times. ¯\_(ツ)_/¯
-            SetForegroundWindow(_consolePtr);
+            if (Program.ConsoleOnTop)
+            {
+                SetForegroundWindow(Handle); // Allows the method bellow to work more than 1 times. ¯\_(ツ)_/¯
+                SetForegroundWindow(_consolePtr);
+            }
         }
     }
 }
