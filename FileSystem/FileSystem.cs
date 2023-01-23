@@ -58,7 +58,8 @@ namespace FileSystemNS
             ResiliencyByteCount = (ushort)(SectorSize / RESILIENCY_FACTOR);
             ResiliencyIndex = (ushort)(SectorSize - ResiliencyByteCount);
             NextSectorIndex = (ushort)(ResiliencyIndex - ADDRESS_BYTES);
-            FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES - ResiliencyByteCount);
+            //FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - ADDRESS_BYTES - ResiliencyByteCount);
+            FirstSectorInfoSize = (ushort)(SectorInfoSize - 2 - NAME_BYTES - LONG_BYTES);
             _badSectorsAddress = BITMAP_INDEX + _bitMap.ByteCount;
             RootAddress = Math_.DivCeiling(_badSectorsAddress + _badSectors.ByteCount, SectorSize) * SectorSize;
         }
@@ -278,7 +279,7 @@ namespace FileSystemNS
         internal bool TryGetSector(long address, out Sector sector) =>
             Sector.TryGet(this, address, out sector);
 
-        internal bool TryUpdateSector(Object obj, Sector newSector)
+        internal bool TryUpdateSector(Object obj, long oldByteCount, Sector newSector)
         {
             if (!obj.Parent.TryGetSector(out Sector parentSector))
                 return false;
@@ -288,7 +289,7 @@ namespace FileSystemNS
             if (!parentSector.TryGetLast(sectorCount, out Sector targetSector))
                 return false;
 
-            FreeSectorsOf(obj);
+            FreeSectorsOf(obj, oldByteCount);
 
             newSector.Address.GetBytes(_reuseAddressArray, 0);
             _stream.WriteAt(targetSector.Address + objIndex, _reuseAddressArray, 0, ADDRESS_BYTES);
@@ -483,14 +484,16 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        internal FSResult FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object
+        internal FSResult FreeSectorsOf<T>(T obj, bool removeFirst = true) where T : Object =>
+            FreeSectorsOf(obj, obj.ByteCount, removeFirst);
+        internal FSResult FreeSectorsOf<T>(T obj, long byteCountToRemove, bool removeFirst = true) where T : Object
         {
             if (obj is Directory dir)
                 foreach (var subObj in dir.EnumerateObjects())
                     FreeSectorsOf(subObj);
 
             return obj.TryGetSector(out Sector sector) &&
-                sector.TryFreeChain(TotalSectors(obj.ByteCount), removeFirst)
+                sector.TryFreeChain(TotalSectors(byteCountToRemove), removeFirst)
                     ? FSResult.Success
                     : FSResult.BadSectorFound;
         }
@@ -767,7 +770,8 @@ namespace FileSystemNS
                 for (int i = 0; i < fullSectors; i++)
                 {
                     Stream.ReadAt(sector.Address, bytes, index, SectorInfoSize);
-                    if (!TryGetNext(out sector))
+                    index += SectorInfoSize;
+                    if (!sector.TryGetNext(out sector))
                         return false;
                 }
                 Stream.ReadAt(sector.Address, bytes, index, remaining);
@@ -780,7 +784,11 @@ namespace FileSystemNS
             {
                 byte[] bytes = obj.SerializeBytes();
                 int count = bytes.Length;
-                if (_fs.FreeSectorCount < _fs.TotalSectors(count)) return false;
+                if (_fs.FreeSectorCount < _fs.TotalSectors(count))
+                {
+                    ByteCount = 0;
+                    return false;
+                }
 
                 ObjectFlags = obj.ObjectFlags;
                 Name = obj.Name;

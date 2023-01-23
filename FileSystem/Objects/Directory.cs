@@ -260,7 +260,7 @@ namespace FileSystemNS
                 return FSResult.RootCorrupted;
 
             newName = newName is null
-                ? GetNameWithRepeatCount(file.Name)
+                ? GetFileNameWithRepeatCount(file.Name)
                 : newName + '.' + file.Format.ToLower();
             var result = ValidateName(this, newName);
             if (result != FSResult.Success)
@@ -373,12 +373,43 @@ namespace FileSystemNS
                 : result;
         }
 
-        public string GetNameWithRepeatCount(string name)
+        public string GetDirectoryNameWithRepeatCount(string name)
         {
+            if (!_directories.Contains_(d => d.Name == name))
+                return name;
+
+            int openBracket = name.LastIndexOf('(');
+            ulong count = 0;
+
+            if (openBracket == -1)
+                openBracket = name.Length;
+            else if (ulong.TryParse(name.SubstringAt_(openBracket + 1, name.Length - 1), out ulong currCount))
+                count = currCount;
+
+            for (int i = 0; i < _directories.Count; i++)
+            {
+                string dName = _directories[i].Name;
+                if (dName.Length <= openBracket)
+                    continue;
+
+                if (dName[openBracket] == '(' &&
+                    ulong.TryParse(dName.SubstringAt_(openBracket + 1, dName.Length - 2), out ulong currCount) &&
+                    currCount > count)
+                    count = currCount;
+            }
+
+            return name + $"({count + 1})";
+        }
+
+        public string GetFileNameWithRepeatCount(string name)
+        {
+            if (!_files.Contains_(f => f.Name == name))
+                return name;
+
             ulong count = 0;
             int dotIndex = name.LastIndexOf_('.');
             string format = name.Substring(dotIndex + 1);
-            bool exits = _files.Contains_(f => f.Name == name);
+
             for (int i = 0; i < _files.Count; i++)
             {
                 if (_files[i].Format.ToLower() != format)
@@ -394,7 +425,7 @@ namespace FileSystemNS
                     count = currCount;
             }
 
-            return name.Substring_(0, dotIndex) + (exits ? $"({count + 1})" : "") + '.' + format;
+            return name.Substring_(0, dotIndex) + $"({count + 1})" + '.' + format;
         }
 
         public bool IsChildOf(Directory directory)

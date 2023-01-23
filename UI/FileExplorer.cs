@@ -16,9 +16,11 @@ namespace UI
 
         private readonly List_<Directory> _historyList = new List_<Directory>();
 
+        private ListViewItem _lastClickedItem;
         private Directory _curDir;
         private Flags _flags;
         private int _historyIndex = -1;
+        private bool _shouldMultiSelect;
 
         public FileExplorer(Directory directory)
         {
@@ -70,21 +72,21 @@ namespace UI
                         if (listView.SelectedItems.Count == 0)
                             return;
 
-                        ListViewItem[] selected = new ListViewItem[listView.SelectedItems.Count];
-                        listView.SelectedItems.CopyTo(selected, 0);
-                        for (int i = 0; i < selected.Length; i++)
+                        while (listView.SelectedItems.Count > 0)
                         {
-                            var item = selected[i];
-                            var result = item.Index < _curDir.Directories.Count
+                            var item = listView.SelectedItems[0];
+
+                            var result = item.ImageKey == nameof(Directory)
                                 ? _curDir.TryRemoveDirectory(item.Name, out _)
                                 : _curDir.TryRemoveFile(item.Name);
 
-                            if (result.IsError(error => MessageBox.Show(error)))
+                            if (result.IsError(error => MessageBox.Show(error), item.Name))
                                 return;
 
-                            listView.Items.Remove(item);
+                            listView.Items.Remove(listView.SelectedItems[0]);
                         }
 
+                        ReloadTreeViewSubItem();
                         break;
                     }
 
@@ -108,7 +110,8 @@ namespace UI
 
         private void TreeViewDirectory_BeforeExpand(object sender, TreeViewCancelEventArgs e)
         {
-            if (_curDir.TryFindDirectory(e.Node.FullPath, out Directory curDir, out _).IsError())
+            if (_curDir.TryFindDirectory(e.Node.FullPath, out Directory curDir, out _)
+                .IsError(error => MessageBox.Show(error)))
             {
                 Close();
                 return;
@@ -162,6 +165,25 @@ namespace UI
             SetCurrentDirectory(curDir);
         }
 
+        private void ListViewObjects_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (_shouldMultiSelect)
+                ListViewObjects.MultiSelect = true;
+            _shouldMultiSelect = true;
+
+            if (e.Button != MouseButtons.Right)
+                return;
+
+            var item = ListViewObjects.HitTest(e.Location).Item;
+            if (item is null)
+                ListViewObjects.ContextMenuStrip = ContextListObjects;
+            else
+            {
+                ListViewObjects.ContextMenuStrip = ContextListItem;
+                _lastClickedItem = item;
+            }
+        }
+
         private void ListViewObjects_ItemActivate(object sender, EventArgs e)
         {
             if (_curDir.TryFindObject(ListViewObjects.FocusedItem.Name, out var obj)
@@ -185,25 +207,19 @@ namespace UI
                     break;
 
                 case FileFormat.Rtf:
+                    new FormRtf(file).ShowDialog();
                     break;
 
                 case FileFormat.Bmp:
-                    break;
                 case FileFormat.Emf:
-                    break;
                 case FileFormat.Wmf:
-                    break;
                 case FileFormat.Gif:
-                    break;
                 case FileFormat.Jpeg:
-                    break;
                 case FileFormat.Png:
-                    break;
                 case FileFormat.Tiff:
-                    break;
                 case FileFormat.Exif:
-                    break;
                 case FileFormat.Icon:
+                    new FormImg(file).ShowDialog();
                     break;
 
                 case FileFormat.Wav:
@@ -211,6 +227,54 @@ namespace UI
 
                 default: throw new UnreachableException();
             }
+        }
+
+        private void ListViewObjects_AfterLabelEdit(object sender, LabelEditEventArgs e)
+        {
+            string[] path;
+            var item = ListViewObjects.Items[e.Item];
+
+            if (item.ImageKey == nameof(Directory))
+            {
+
+                if (_curDir.TryFindDirectory(item.Name, out Directory dir)
+                        .IsError(error => MessageBox.Show(error), e.Label) ||
+                    dir.TrySetName(e.Label)
+                        .IsError(error => MessageBox.Show(error), e.Label))
+                {
+                    ListViewObjects.MultiSelect = false;
+                    _shouldMultiSelect = false;
+                    e.CancelEdit = true;
+                    return;
+                }
+                path = dir.FullName.Split_('\\');
+            }
+            else
+            {
+                if (_curDir.TryFindFile(item.Name, out File file)
+                        .IsError(error => MessageBox.Show(error), e.Label) ||
+                    file.TrySetName(e.Label)
+                        .IsError(error => MessageBox.Show(error), e.Label))
+                {
+                    ListViewObjects.MultiSelect = false;
+                    _shouldMultiSelect = false;
+                    e.CancelEdit = true;
+                    return;
+                }
+                path = file.FullName.Split_('\\');
+            }
+
+            path[path.Length - 1] = item.Name;
+            item.Name = e.Label;
+            var node = TreeViewDirectory.Nodes[path[0]];
+            for (int i = 1; i < path.Length; i++)
+                node = node.Nodes[path[i]];
+
+            if (node is null)
+                return;
+
+            node.Name = e.Label;
+            node.Text = e.Label;
         }
 
         private void MenuShow_DropDownItemClicked(object sender, ToolStripItemClickedEventArgs e)
@@ -228,17 +292,19 @@ namespace UI
             {
                 case DIRECTORY:
                 {
-                    string name = _curDir.GetNameWithRepeatCount("New Directory");
+                    string name = _curDir.GetDirectoryNameWithRepeatCount("New Directory");
                     var item = ListViewAddDirectory(name, 0);
                     var result = _curDir.TryCreateDirectory(name, out _);
                     if (result.IsError(error => MessageBox.Show(error), name))
                         ListViewObjects.Items.Remove(item);
+                    else if (_curDir.Directories.Count == 1)
+                        ReloadTreeViewSubItem();
                     break;
                 }
 
                 case TEXT:
                 {
-                    string name = _curDir.GetNameWithRepeatCount("New Text.txt");
+                    string name = _curDir.GetFileNameWithRepeatCount("New Text.txt");
                     var item = ListViewAddFile(name, FileFormat.Txt, 0);
                     var result = _curDir.TryCreateFile(name, out _);
                     if (result.IsError(error => MessageBox.Show(error), name))
@@ -247,11 +313,23 @@ namespace UI
                 }
 
                 case RICH_TEXT:
+                {
+                    string name = _curDir.GetFileNameWithRepeatCount("New Rich Text.rtf");
+                    var item = ListViewAddFile(name, FileFormat.Rtf, 0);
+                    var result = _curDir.TryCreateFile(name, out _);
+                    if (result.IsError(error => MessageBox.Show(error), name))
+                        ListViewObjects.Items.Remove(item);
                     break;
+                }
 
                 default: throw new UnreachableException();
             }
+
+            ReloadListView();
         }
+
+        private void ContextListRename_MouseDown(object sender, MouseEventArgs e) =>
+            _lastClickedItem.BeginEdit();
 
         private void MenuBack_MouseDown(object sender, MouseEventArgs e)
         {
@@ -330,6 +408,25 @@ namespace UI
             }
         }
 
+        private void ReloadTreeViewSubItem()
+        {
+            string[] path = _curDir.FullName.Split_('\\');
+            var node = TreeViewDirectory.Nodes[path[0]];
+            for (int i = 1; i < path.Length; i++)
+                node = node.Nodes[path[i]];
+
+            var parent = node.Parent;
+            if (parent is null)
+            {
+                TreeViewDirectory.Nodes.Clear();
+                FileExplorer_Load(null, null);
+                return;
+            }
+
+            parent.Collapse();
+            parent.Expand();
+        }
+
         private ListViewItem ListViewAddDirectory(string name, long byteCount)
         {
             var item = ListViewObjects.Items.Add(name, name, nameof(Directory));
@@ -356,17 +453,13 @@ namespace UI
         private class MyRenderer : ToolStripProfessionalRenderer
         {
             public MyRenderer() : base(new MyColorTable()) { }
+
             protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
             {
                 base.OnRenderMenuItemBackground(e);
                 if (e.Item.Enabled && e.Item.Selected)
-                {
                     using (var pen = new Pen(((MyColorTable)ColorTable).MenuItemEnabledBorder))
-                    {
-                        var r = new Rectangle(0, 0, e.Item.Width - 1, e.Item.Height - 1);
-                        e.Graphics.DrawRectangle(pen, r);
-                    }
-                }
+                        e.Graphics.DrawRectangle(pen, 0, 0, e.Item.Width - 1, e.Item.Height - 1);
             }
 
             private class MyColorTable : ProfessionalColorTable

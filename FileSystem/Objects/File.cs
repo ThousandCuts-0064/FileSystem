@@ -68,7 +68,7 @@ namespace FileSystemNS
                     case FileFormat.Tiff:
                     case FileFormat.Exif:
                     case FileFormat.Icon:
-                        if (obj is Image img && img.RawFormat == Format.ToImageFormat()) break;
+                        if (obj.GetType().IsSubclassOf(typeof(Image)) && ((Image)obj).RawFormat.Guid == Format.ToImageFormat().Guid) break;
                         return FSResult.FormatMismatch;
 
                     case FileFormat.Wav:
@@ -82,15 +82,19 @@ namespace FileSystemNS
             return FSResult.Success;
         }
 
-        public FSResult TrySave() => FileSystem.IsRootCorrupted
-            ? FSResult.RootCorrupted
-            : !TryGetSector(out var sector) || !sector.TryGetLast(FileSystem.TotalSectors(ByteCount) - 1, out _)
-                ? FSResult.BadSectorFound
-                : !sector.TryFindFree(out sector) || !sector.TrySerializeChainFrom(this)
-                    ? FSResult.NotEnoughSpace
-                    : TryUpdateAddress(this, sector)
-                        ? FSResult.Success
-                        : FSResult.BadSectorFound;
+        public FSResult TrySave()
+        {
+            long oldByeCount = ByteCount;
+            return FileSystem.IsRootCorrupted
+                ? FSResult.RootCorrupted
+                : !TryGetSector(out var sector) || !sector.TryGetLast(FileSystem.TotalSectors(ByteCount) - 1, out _)
+                    ? FSResult.BadSectorFound
+                    : !sector.TryFindFree(out sector) || !sector.TrySerializeChainFrom(this)
+                        ? TryRemoveOnNotEnoughSpace()
+                        : TryUpdateAddress(this, oldByeCount, sector)
+                            ? FSResult.Success
+                            : FSResult.BadSectorFound;
+        }
 
         public FSResult TryLoad() => FileSystem.IsRootCorrupted
                 ? FSResult.RootCorrupted
@@ -100,7 +104,7 @@ namespace FileSystemNS
                         ? FSResult.Success 
                         : FSResult.NotEnoughSpace;
 
-        internal object GetObjectDeepCopy()
+        public object GetObjectDeepCopy()
         {
             if (Object is null)
                 return null;
@@ -212,5 +216,12 @@ namespace FileSystemNS
         }
 
         private protected override bool TryRemoveFromParent() => Parent.TryRemoveFile(Name) == FSResult.Success;
+
+        private FSResult TryRemoveOnNotEnoughSpace()
+        {
+            ByteCount = 0;
+            var result = Parent.TryRemoveFile(Name);
+            return result == FSResult.Success ? FSResult.NotEnoughSpace : result;
+        }
     }
 }

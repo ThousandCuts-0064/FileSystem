@@ -122,9 +122,9 @@ namespace FileSystemNS
             return false;
         }
 
-        internal bool TryUpdateAddress(Object obj, FileSystem.Sector newSector)
+        internal bool TryUpdateAddress(Object obj, long oldByteCount, FileSystem.Sector newSector)
         {
-            if (!FileSystem.TryUpdateSector(this, newSector))
+            if (!FileSystem.TryUpdateSector(this, oldByteCount, newSector))
                 return false;
 
             obj.Address = newSector.Address;

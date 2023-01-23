@@ -581,9 +581,11 @@ namespace UI
                                 }
 
                                 if (file.TrySetObject(obj)
-                                        .IsError(Console.WriteLine))
+                                    .IsError(Console.WriteLine))
                                     throw new UnreachableException("File format should have been the same.");
-                                file.TrySave();
+                                if(file.TrySave()
+                                    .IsError(Console.WriteLine))
+                                    Console.WriteLine();
 
                                 continue;
                             }

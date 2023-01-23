@@ -36,6 +36,7 @@ namespace FileSystemNS
                     Console.WriteLine();
                     string str = Console.ReadLine();
                     if (str == "1") str = "create f /t 10kb /s 512";
+                    else if (str == "2") str = "create f /t 5mb /s 512";
                     commands = str.TrimEnd_(' ').Split_(' ', 2);
                     Console.WriteLine();
                 }

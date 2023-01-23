@@ -21,7 +21,9 @@ namespace UI
             do
             {
                 Reload = false;
-                FileSystem fileSystem = FileHelper.Open(args.Join_(" "));
+                FileSystem fileSystem = args.Length == 0 
+                    ? FileHelper.Open(null) 
+                    : FileHelper.Open(args.Join_(" "));
                 Console.Title = fileSystem.RootDirectory.Name;
                 Application.Run(new FormMain(fileSystem));
                 fileSystem.Close();
